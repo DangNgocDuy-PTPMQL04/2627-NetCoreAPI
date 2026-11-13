@@ -1,0 +1,288 @@
+
+@{
+    ViewData["Title"] = "Quản lý khoa";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3><i class="bi bi-building"></i> Quản lý khoa</h3>
+        <button class="btn btn-primary" onclick="openCreateModal()">
+            <i class="bi bi-plus-circle"></i> Thêm khoa
+        </button>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="row g-2 mb-3">
+                <div class="col-md-6">
+                    <input id="searchBox" class="form-control"
+                           placeholder="Nhập tên khoa cần tìm..." />
+                </div>
+                <div class="col-md-3">
+                    <select id="pageSize" class="form-select">
+                        <option value="5">5 bản ghi/trang</option>
+                        <option value="10">10 bản ghi/trang</option>
+                        <option value="20">20 bản ghi/trang</option>
+                        <option value="50">50 bản ghi/trang</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button class="btn btn-outline-secondary w-100"
+                            onclick="clearSearch()">
+                        <i class="bi bi-x-circle"></i> Xóa tìm kiếm
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>STT</th>
+                            <th>Tên khoa</th>
+                            <th>Số sinh viên</th>
+                            <th style="width:150px">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="facultyTable">
+                        <tr><td colspan="4" class="text-center">Đang tải dữ liệu...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div id="paginationInfo" class="text-muted"></div>
+                <nav><ul id="pagination" class="pagination mb-0"></ul></nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="facultyModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="facultyForm">
+                @Html.AntiForgeryToken()
+
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Thêm khoa</h5>
+                    <button type="button" class="btn-close"
+                            data-bs-dismiss="modal"></button>
+                </div>
+
+                <div class="modal-body">
+                    <input type="hidden" id="Id" name="Id" />
+
+                    <label class="form-label">Tên khoa</label>
+                    <input id="Name" name="Name" class="form-control"
+                           maxlength="100" required />
+                    <div class="text-danger small" data-error="Name"></div>
+                    <div id="formMessage" class="text-danger mt-2"></div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary"
+                            data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-primary">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let currentPage = 1;
+    let currentPageSize = 5;
+    let searchKeyword = "";
+    let searchTimer = null;
+
+    const facultyModal = new bootstrap.Modal(
+        document.getElementById("facultyModal")
+    );
+
+    function escapeHtml(value) {
+        return $("<div>").text(value ?? "").html();
+    }
+
+    function getToken() {
+        return $("#facultyForm input[name='__RequestVerificationToken']").val();
+    }
+
+    function loadFaculties(page = 1) {
+        currentPage = page;
+
+        $.get("/Faculty/List", {
+            keyword: searchKeyword,
+            page: currentPage,
+            pageSize: currentPageSize
+        }, function (response) {
+            if (!response.success) return;
+
+            const result = response.data;
+            const tbody = $("#facultyTable");
+            tbody.empty();
+
+            if (result.items.length === 0) {
+                tbody.html('<tr><td colspan="4" class="text-center text-muted">Không tìm thấy dữ liệu.</td></tr>');
+            } else {
+                result.items.forEach((f, index) => {
+                    tbody.append(`
+                        <tr>
+                            <td>${(result.page - 1) * result.pageSize + index + 1}</td>
+                            <td>${escapeHtml(f.name)}</td>
+                            <td>${f.studentCount}</td>
+                            <td>
+                                <button class="btn btn-sm btn-warning"
+                                        onclick="editFaculty(${f.id})">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger"
+                                        onclick="deleteFaculty(${f.id})">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `);
+                });
+            }
+
+            $("#paginationInfo").text(
+                `Tổng ${result.totalCount} bản ghi | Trang ${result.page}/${Math.max(result.totalPages, 1)}`
+            );
+
+            renderPagination(result.page, result.totalPages);
+        }).fail(() => alert("Không thể tải danh sách khoa."));
+    }
+
+    function renderPagination(page, totalPages) {
+        const ul = $("#pagination");
+        ul.empty();
+
+        function addButton(label, target, disabled, active = false) {
+            ul.append(`
+                <li class="page-item ${disabled ? "disabled" : ""} ${active ? "active" : ""}">
+                    <button class="page-link" ${disabled ? "disabled" : ""}
+                            onclick="loadFaculties(${target})">${label}</button>
+                </li>
+            `);
+        }
+
+        addButton("Đầu", 1, page <= 1);
+        addButton("Trước", page - 1, page <= 1);
+
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || Math.abs(i - page) <= 2) {
+                addButton(i, i, false, i === page);
+            } else if (Math.abs(i - page) === 3) {
+                ul.append('<li class="page-item disabled"><span class="page-link">...</span></li>');
+            }
+        }
+
+        addButton("Sau", page + 1, page >= totalPages);
+        addButton("Cuối", totalPages, page >= totalPages);
+    }
+
+    function openCreateModal() {
+        $("#facultyForm")[0].reset();
+        $("#Id").val("");
+        $("#modalTitle").text("Thêm khoa");
+        $("#formMessage").text("");
+        $("[data-error]").text("");
+        facultyModal.show();
+    }
+
+    function editFaculty(id) {
+        $.get("/Faculty/Get/" + id, function (response) {
+            if (!response.success) {
+                alert(response.message);
+                return;
+            }
+
+            $("#facultyForm")[0].reset();
+            $("#Id").val(response.data.id);
+            $("#Name").val(response.data.name);
+            $("#modalTitle").text("Cập nhật khoa");
+            $("#formMessage").text("");
+            $("[data-error]").text("");
+            facultyModal.show();
+        }).fail(() => alert("Không thể tải thông tin khoa."));
+    }
+
+    $("#facultyForm").on("submit", function (e) {
+        e.preventDefault();
+
+        $("[data-error]").text("");
+        $("#formMessage").text("");
+
+        $.ajax({
+            url: "/Faculty/Save",
+            type: "POST",
+            data: $(this).serialize(),
+            headers: {
+                "RequestVerificationToken": getToken()
+            },
+            success: function (response) {
+                if (!response.success) {
+                    if (response.errors) {
+                        Object.keys(response.errors).forEach(key => {
+                            $(`[data-error='${key}']`).text(response.errors[key].join(", "));
+                        });
+                    }
+
+                    $("#formMessage").text(response.message);
+                    return;
+                }
+
+                facultyModal.hide();
+                alert(response.message);
+                loadFaculties(currentPage);
+            },
+            error: xhr => alert(xhr.responseJSON?.message || "Có lỗi khi lưu khoa.")
+        });
+    });
+
+    function deleteFaculty(id) {
+        if (!confirm("Bạn có chắc chắn muốn xóa khoa này?")) return;
+
+        $.ajax({
+            url: "/Faculty/Delete/" + id,
+            type: "POST",
+            headers: {
+                "RequestVerificationToken": getToken()
+            },
+            success: function (response) {
+                alert(response.message);
+                loadFaculties(currentPage);
+            },
+            error: function (xhr) {
+                alert(xhr.responseJSON?.message || "Không thể xóa khoa.");
+            }
+        });
+    }
+
+    $("#searchBox").on("input", function () {
+        clearTimeout(searchTimer);
+
+        searchTimer = setTimeout(() => {
+            searchKeyword = $(this).val();
+            loadFaculties(1);
+        }, 350);
+    });
+
+    $("#pageSize").on("change", function () {
+        currentPageSize = parseInt($(this).val());
+        loadFaculties(1);
+    });
+
+    function clearSearch() {
+        $("#searchBox").val("");
+        searchKeyword = "";
+        loadFaculties(1);
+    }
+
+    $(document).ready(function () {
+        loadFaculties();
+    });
+</script>
+}

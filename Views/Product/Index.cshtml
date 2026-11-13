@@ -1,131 +1,332 @@
-@model IEnumerable<DemoMVC.Models.Product>
 
 @{
     ViewData["Title"] = "Quản lý sản phẩm";
 }
 
-<div class="container py-4">
-
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="fw-bold mb-1">Quản lý sản phẩm</h2>
-            <p class="text-muted mb-0">
-                Danh sách thiết bị điện
-            </p>
-        </div>
-
-        <a asp-action="Create" class="btn btn-primary">
-            <i class="bi bi-plus-lg"></i>
-            Thêm sản phẩm
-        </a>
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3><i class="bi bi-box-seam"></i> Quản lý sản phẩm</h3>
+        <button class="btn btn-primary" onclick="openCreateModal()">
+            <i class="bi bi-plus-circle"></i> Thêm sản phẩm
+        </button>
     </div>
 
-    @if (TempData["SuccessMessage"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show">
-            <strong>Thành công!</strong>
-            @TempData["SuccessMessage"]
-
-            <button type="button"
-                    class="btn-close"
-                    data-bs-dismiss="alert">
-            </button>
-        </div>
-    }
-
-    <div class="card border-0 shadow-sm">
-
-        <div class="card-body p-0">
-
-            <div class="table-responsive">
-
-                <table class="table table-hover align-middle mb-0">
-
-                    <thead class="table-dark">
-                        <tr>
-                            <th class="text-center">ID</th>
-                            <th>Tên sản phẩm</th>
-                            <th>Giá</th>
-                            <th>Danh mục</th>
-                            <th class="text-center">Chức năng</th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-
-                        @if (Model.Any())
-                        {
-                            @foreach (var product in Model)
-                            {
-                                <tr>
-
-                                    <td class="text-center">
-                                        @product.Id
-                                    </td>
-
-                                    <td>
-                                        <strong>
-                                            @product.Name
-                                        </strong>
-                                    </td>
-
-                                    <td>
-                                        <span class="text-danger fw-bold">
-                                           @($"{product.Price:N0}") VND
-                                        </span>
-                                    </td>
-
-                                    <td>
-                                        <span class="badge bg-secondary">
-                                            @product.Category
-                                        </span>
-                                    </td>
-
-                                    <td class="text-center">
-
-                                        <a asp-action="Details"
-                                           asp-route-id="@product.Id"
-                                           class="btn btn-info btn-sm text-white">
-                                            Chi tiết
-                                        </a>
-
-                                        <a asp-action="Edit"
-                                           asp-route-id="@product.Id"
-                                           class="btn btn-warning btn-sm">
-                                            Sửa
-                                        </a>
-
-                                        <a asp-action="Delete"
-                                           asp-route-id="@product.Id"
-                                           class="btn btn-danger btn-sm">
-                                            Xóa
-                                        </a>
-
-                                    </td>
-
-                                </tr>
-                            }
-                        }
-                        else
-                        {
-                            <tr>
-                                <td colspan="5"
-                                    class="text-center py-5 text-muted">
-
-                                    Chưa có sản phẩm nào.
-
-                                </td>
-                            </tr>
-                        }
-
-                    </tbody>
-
-                </table>
-
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="row g-2 mb-3">
+                <div class="col-md-6">
+                    <input id="searchBox" class="form-control"
+                           placeholder="Tìm tên sản phẩm hoặc danh mục..." />
+                </div>
+                <div class="col-md-3">
+                    <select id="pageSize" class="form-select">
+                        <option value="5">5 bản ghi/trang</option>
+                        <option value="10">10 bản ghi/trang</option>
+                        <option value="20">20 bản ghi/trang</option>
+                        <option value="50">50 bản ghi/trang</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button class="btn btn-outline-secondary w-100"
+                            onclick="clearSearch()">
+                        <i class="bi bi-x-circle"></i> Xóa tìm kiếm
+                    </button>
+                </div>
             </div>
 
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>STT</th>
+                            <th>Tên sản phẩm</th>
+                            <th>Giá (VNĐ)</th>
+                            <th>Số lượng</th>
+                            <th>Danh mục</th>
+                            <th style="width:150px">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productTable">
+                        <tr><td colspan="6" class="text-center">Đang tải dữ liệu...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div id="paginationInfo" class="text-muted"></div>
+                <nav><ul id="pagination" class="pagination mb-0"></ul></nav>
+            </div>
         </div>
-
     </div>
-
 </div>
+
+<div class="modal fade" id="productModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="productForm">
+                @Html.AntiForgeryToken()
+
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Thêm sản phẩm</h5>
+                    <button type="button" class="btn-close"
+                            data-bs-dismiss="modal"></button>
+                </div>
+
+                <div class="modal-body">
+                    <input type="hidden" id="Id" name="Id" />
+
+                    <div class="mb-3">
+                        <label class="form-label">Tên sản phẩm</label>
+                        <input id="Name" name="Name" class="form-control"
+                               maxlength="100" required />
+                        <div class="text-danger small" data-error="Name"></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Giá sản phẩm (VNĐ)</label>
+                        <input id="Price" name="Price" type="number"
+                               class="form-control" min="1000"
+                               max="100000000" step="1000" required />
+                        <div class="text-danger small" data-error="Price"></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Số lượng</label>
+                        <input id="Quantity" name="Quantity" type="number"
+                               class="form-control" min="1"
+                               max="10000" required />
+                        <div class="text-danger small" data-error="Quantity"></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Danh mục</label>
+                        <input id="Category" name="Category"
+                               class="form-control" maxlength="100" required />
+                        <div class="text-danger small" data-error="Category"></div>
+                    </div>
+
+                    <div id="formMessage" class="text-danger"></div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary"
+                            data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Lưu sản phẩm
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let currentPage = 1;
+    let currentPageSize = 5;
+    let searchKeyword = "";
+    let searchTimer = null;
+
+    const productModal = new bootstrap.Modal(
+        document.getElementById("productModal")
+    );
+
+    function escapeHtml(value) {
+        return $("<div>").text(value ?? "").html();
+    }
+
+    function getToken() {
+        return $("#productForm input[name='__RequestVerificationToken']").val();
+    }
+
+    function formatCurrency(value) {
+        if (value == null) return "";
+        return Number(value).toLocaleString("vi-VN") + " đ";
+    }
+
+    function loadProducts(page = 1) {
+        currentPage = page;
+
+        $.get("/Product/List", {
+            keyword: searchKeyword,
+            page: currentPage,
+            pageSize: currentPageSize
+        }, function (response) {
+            if (!response.success) return;
+
+            const result = response.data;
+            const tbody = $("#productTable");
+            tbody.empty();
+
+            if (result.items.length === 0) {
+                tbody.html('<tr><td colspan="6" class="text-center text-muted">Không tìm thấy dữ liệu.</td></tr>');
+            } else {
+                result.items.forEach((p, index) => {
+                    tbody.append(`
+                        <tr>
+                            <td>${(result.page - 1) * result.pageSize + index + 1}</td>
+                            <td>${escapeHtml(p.name)}</td>
+                            <td>${formatCurrency(p.price)}</td>
+                            <td>${p.quantity ?? ""}</td>
+                            <td>${escapeHtml(p.category)}</td>
+                            <td>
+                                <button class="btn btn-sm btn-warning"
+                                        onclick="editProduct(${p.id})">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger"
+                                        onclick="deleteProduct(${p.id})">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `);
+                });
+            }
+
+            $("#paginationInfo").text(
+                `Tổng ${result.totalCount} bản ghi | Trang ${result.page}/${Math.max(result.totalPages, 1)}`
+            );
+
+            renderPagination(result.page, result.totalPages);
+        }).fail(() => alert("Không thể tải danh sách sản phẩm."));
+    }
+
+    function renderPagination(page, totalPages) {
+        const ul = $("#pagination");
+        ul.empty();
+
+        function addButton(label, target, disabled, active = false) {
+            ul.append(`
+                <li class="page-item ${disabled ? "disabled" : ""} ${active ? "active" : ""}">
+                    <button class="page-link" ${disabled ? "disabled" : ""}
+                            onclick="loadProducts(${target})">${label}</button>
+                </li>
+            `);
+        }
+
+        addButton("Đầu", 1, page <= 1);
+        addButton("Trước", page - 1, page <= 1);
+
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || Math.abs(i - page) <= 2) {
+                addButton(i, i, false, i === page);
+            } else if (Math.abs(i - page) === 3) {
+                ul.append('<li class="page-item disabled"><span class="page-link">...</span></li>');
+            }
+        }
+
+        addButton("Sau", page + 1, page >= totalPages);
+        addButton("Cuối", totalPages, page >= totalPages);
+    }
+
+    function openCreateModal() {
+        $("#productForm")[0].reset();
+        $("#Id").val("");
+        $("#modalTitle").text("Thêm sản phẩm");
+        $("#formMessage").text("");
+        $("[data-error]").text("");
+        productModal.show();
+    }
+
+    function editProduct(id) {
+        $.get("/Product/Get/" + id, function (response) {
+            if (!response.success) {
+                alert(response.message);
+                return;
+            }
+
+            const p = response.data;
+
+            $("#productForm")[0].reset();
+            $("#Id").val(p.id);
+            $("#Name").val(p.name);
+            $("#Price").val(p.price);
+            $("#Quantity").val(p.quantity);
+            $("#Category").val(p.category);
+
+            $("#modalTitle").text("Cập nhật sản phẩm");
+            $("#formMessage").text("");
+            $("[data-error]").text("");
+
+            productModal.show();
+        }).fail(() => alert("Không thể tải thông tin sản phẩm."));
+    }
+
+    $("#productForm").on("submit", function (e) {
+        e.preventDefault();
+
+        $("[data-error]").text("");
+        $("#formMessage").text("");
+
+        $.ajax({
+            url: "/Product/Save",
+            type: "POST",
+            data: $(this).serialize(),
+            headers: {
+                "RequestVerificationToken": getToken()
+            },
+            success: function (response) {
+                if (!response.success) {
+                    if (response.errors) {
+                        Object.keys(response.errors).forEach(key => {
+                            $(`[data-error='${key}']`).text(response.errors[key].join(", "));
+                        });
+                    }
+
+                    $("#formMessage").text(response.message);
+                    return;
+                }
+
+                productModal.hide();
+                alert(response.message);
+                loadProducts(currentPage);
+            },
+            error: xhr => alert(xhr.responseJSON?.message || "Có lỗi khi lưu sản phẩm.")
+        });
+    });
+
+    function deleteProduct(id) {
+        if (!confirm("Bạn có chắc chắn muốn xóa sản phẩm này?")) return;
+
+        $.ajax({
+            url: "/Product/Delete/" + id,
+            type: "POST",
+            headers: {
+                "RequestVerificationToken": getToken()
+            },
+            success: function (response) {
+                alert(response.message);
+                loadProducts(currentPage);
+            },
+            error: function (xhr) {
+                alert(xhr.responseJSON?.message || "Không thể xóa sản phẩm.");
+            }
+        });
+    }
+
+    $("#searchBox").on("input", function () {
+        clearTimeout(searchTimer);
+
+        searchTimer = setTimeout(() => {
+            searchKeyword = $(this).val();
+            loadProducts(1);
+        }, 350);
+    });
+
+    $("#pageSize").on("change", function () {
+        currentPageSize = parseInt($(this).val());
+        loadProducts(1);
+    });
+
+    function clearSearch() {
+        $("#searchBox").val("");
+        searchKeyword = "";
+        loadProducts(1);
+    }
+
+    $(document).ready(function () {
+        loadProducts();
+    });
+</script>
+}

@@ -1,13 +1,7 @@
 
-
-
-
-
-
 using DemoMVC.Data;
 using DemoMVC.Models;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 
 namespace DemoMVC.Controllers
@@ -17,160 +11,267 @@ namespace DemoMVC.Controllers
         private readonly ApplicationDbContext _context;
 
         private const string StudentCodePrefix = "282105";
-        private const int StudentCodeDigits = 4;
-        private const int FirstStudentNumber = 1;
 
         public StudentController(ApplicationDbContext context)
         {
             _context = context;
         }
 
-        // Danh sách sinh viên
-        public async Task<IActionResult> Index()
+        // Trang danh sách sinh viên
+        public IActionResult Index()
         {
-            var students = await _context.Students
+            return View();
+        }
+
+        // Danh sách sinh viên, tìm kiếm và phân trang
+        [HttpGet]
+        public async Task<IActionResult> List(
+            string? keyword,
+            int page = 1,
+            int pageSize = 5)
+        {
+            page = Math.Max(1, page);
+
+            int[] allowedPageSizes = { 5, 10, 20, 50 };
+
+            if (!allowedPageSizes.Contains(pageSize))
+            {
+                pageSize = 5;
+            }
+
+            var query = _context.Students
                 .AsNoTracking()
                 .Include(s => s.Faculty)
-                .OrderBy(s => s.Id)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                keyword = keyword.Trim();
+
+                query = query.Where(s =>
+                    (s.StudentCode != null &&
+                     s.StudentCode.Contains(keyword)) ||
+
+                    s.FullName.Contains(keyword) ||
+
+                    (s.Address != null &&
+                     s.Address.Contains(keyword)) ||
+
+                    (s.University != null &&
+                     s.University.Contains(keyword)) ||
+
+                    (s.Faculty != null &&
+                     s.Faculty.Name.Contains(keyword))
+                );
+            }
+
+            int totalCount = await query.CountAsync();
+
+            int totalPages = (int)Math.Ceiling(
+                totalCount / (double)pageSize
+            );
+
+            if (totalPages > 0 && page > totalPages)
+            {
+                page = totalPages;
+            }
+
+            var items = await query
+                .OrderByDescending(s => s.Id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.StudentCode,
+                    s.FullName,
+                    s.Address,
+                    s.University,
+                    s.FacultyId,
+                    FacultyName = s.Faculty != null
+                        ? s.Faculty.Name
+                        : ""
+                })
                 .ToListAsync();
 
-            return View(students);
+            return Json(new
+            {
+                success = true,
+                data = new
+                {
+                    items,
+                    totalCount,
+                    page,
+                    pageSize,
+                    totalPages
+                }
+            });
         }
 
-        // Hiển thị trang thêm sinh viên
+        // Lấy danh sách khoa cho dropdown
         [HttpGet]
-        public async Task<IActionResult> Create()
+        public async Task<IActionResult> Faculties()
         {
-            await LoadFacultiesAsync();
-            return View(new Student());
+            var faculties = await _context.Faculties
+                .AsNoTracking()
+                .OrderBy(f => f.Name)
+                .Select(f => new
+                {
+                    id = f.Id,
+                    name = f.Name
+                })
+                .ToListAsync();
+
+            return Json(new
+            {
+                success = true,
+                data = faculties
+            });
         }
 
-        // Thêm sinh viên
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(Student student)
-        {
-            ModelState.Remove(nameof(Student.StudentCode));
-
-            bool facultyExists = student.FacultyId.HasValue &&
-                await _context.Faculties.AnyAsync(
-                    f => f.Id == student.FacultyId.Value);
-
-            if (!facultyExists)
-            {
-                ModelState.AddModelError(
-                    nameof(Student.FacultyId),
-                    "Vui lòng chọn khoa hợp lệ.");
-            }
-
-            if (!ModelState.IsValid)
-            {
-                await LoadFacultiesAsync();
-                return View(student);
-            }
-
-            try
-            {
-                student.StudentCode = await GenerateStudentCodeAsync();
-
-                _context.Students.Add(student);
-                await _context.SaveChangesAsync();
-
-                TempData["SuccessMessage"] = "Thêm sinh viên thành công!";
-                return RedirectToAction(nameof(Index));
-            }
-            catch (InvalidOperationException ex)
-            {
-                ModelState.AddModelError(string.Empty, ex.Message);
-            }
-            catch (DbUpdateException)
-            {
-                ModelState.AddModelError(
-                    string.Empty,
-                    "Không thể lưu sinh viên. Vui lòng kiểm tra dữ liệu và cơ sở dữ liệu.");
-            }
-
-            await LoadFacultiesAsync();
-            return View(student);
-        }
-
-        // Hiển thị trang sửa sinh viên
+        // Lấy thông tin một sinh viên để sửa
         [HttpGet]
-        public async Task<IActionResult> Edit(int id)
+        public async Task<IActionResult> Get(int id)
         {
             var student = await _context.Students
                 .AsNoTracking()
-                .FirstOrDefaultAsync(s => s.Id == id);
+                .Where(s => s.Id == id)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.StudentCode,
+                    s.FullName,
+                    s.Address,
+                    s.University,
+                    s.FacultyId
+                })
+                .FirstOrDefaultAsync();
 
             if (student == null)
             {
-                return NotFound();
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Không tìm thấy sinh viên."
+                });
             }
 
-            await LoadFacultiesAsync();
-            return View(student);
+            return Json(new
+            {
+                success = true,
+                data = student
+            });
         }
 
-        // Lưu thông tin sinh viên đã sửa
+        // Thêm hoặc cập nhật sinh viên
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, Student student)
+        public async Task<IActionResult> Save(Student student)
         {
-            if (id != student.Id)
-            {
-                return BadRequest();
-            }
-
-            // Không cho thay đổi mã sinh viên qua biểu mẫu.
+            // Mã sinh viên do hệ thống tạo, không lấy từ biểu mẫu.
             ModelState.Remove(nameof(Student.StudentCode));
 
-            bool facultyExists = student.FacultyId.HasValue &&
-                await _context.Faculties.AnyAsync(
-                    f => f.Id == student.FacultyId.Value);
+            // Không kiểm tra navigation property từ biểu mẫu.
+            ModelState.Remove(nameof(Student.Faculty));
 
-            if (!facultyExists)
+            student.FullName = student.FullName?.Trim() ?? "";
+            student.Address = student.Address?.Trim();
+            student.University = student.University?.Trim();
+
+            // Kiểm tra khoa được chọn có tồn tại trong database không.
+            if (!student.FacultyId.HasValue ||
+                !await _context.Faculties.AnyAsync(
+                    f => f.Id == student.FacultyId.Value))
             {
                 ModelState.AddModelError(
                     nameof(Student.FacultyId),
-                    "Vui lòng chọn khoa hợp lệ.");
-            }
-
-            var existingStudent = await _context.Students
-                .FirstOrDefaultAsync(s => s.Id == id);
-
-            if (existingStudent == null)
-            {
-                return NotFound();
+                    "Vui lòng chọn khoa hợp lệ."
+                );
             }
 
             if (!ModelState.IsValid)
             {
-                student.StudentCode = existingStudent.StudentCode;
-                await LoadFacultiesAsync();
-                return View(student);
-            }
+                var errors = ModelState
+                    .Where(x =>
+                        x.Value != null &&
+                        x.Value.Errors.Count > 0)
+                    .ToDictionary(
+                        x => x.Key,
+                        x => x.Value!.Errors
+                            .Select(e =>
+                                string.IsNullOrWhiteSpace(e.ErrorMessage)
+                                    ? "Dữ liệu không hợp lệ."
+                                    : e.ErrorMessage)
+                            .ToArray()
+                    );
 
-            existingStudent.FullName = student.FullName;
-            existingStudent.Address = student.Address;
-            existingStudent.University = student.University;
-            existingStudent.FacultyId = student.FacultyId;
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Vui lòng kiểm tra lại thông tin.",
+                    errors
+                });
+            }
 
             try
             {
+                if (student.Id == 0)
+                {
+                    student.StudentCode =
+                        await GenerateStudentCodeAsync();
+
+                    student.Faculty = null;
+
+                    _context.Students.Add(student);
+                }
+                else
+                {
+                    var existing = await _context.Students
+                        .FirstOrDefaultAsync(s => s.Id == student.Id);
+
+                    if (existing == null)
+                    {
+                        return NotFound(new
+                        {
+                            success = false,
+                            message = "Không tìm thấy sinh viên."
+                        });
+                    }
+
+                    // Giữ nguyên mã sinh viên khi cập nhật.
+                    existing.FullName = student.FullName;
+                    existing.Address = student.Address;
+                    existing.University = student.University;
+                    existing.FacultyId = student.FacultyId;
+                }
+
                 await _context.SaveChangesAsync();
 
-                TempData["SuccessMessage"] = "Cập nhật sinh viên thành công!";
-                return RedirectToAction(nameof(Index));
+                return Json(new
+                {
+                    success = true,
+                    message = student.Id == 0
+                        ? "Thêm sinh viên thành công."
+                        : "Cập nhật sinh viên thành công."
+                });
             }
-            catch (DbUpdateException)
+            catch (DbUpdateException ex)
             {
-                ModelState.AddModelError(
-                    string.Empty,
-                    "Không thể cập nhật sinh viên. Vui lòng kiểm tra lại dữ liệu.");
-
-                student.StudentCode = existingStudent.StudentCode;
-                await LoadFacultiesAsync();
-                return View(student);
+                return StatusCode(500, new
+                {
+                    success = false,
+                    message = "Không thể lưu dữ liệu vào cơ sở dữ liệu.",
+                    detail = ex.InnerException?.Message ?? ex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    message = "Đã xảy ra lỗi khi lưu sinh viên.",
+                    detail = ex.Message
+                });
             }
         }
 
@@ -179,81 +280,55 @@ namespace DemoMVC.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)
         {
-            var student = await _context.Students
-                .FirstOrDefaultAsync(s => s.Id == id);
+            var student = await _context.Students.FindAsync(id);
 
             if (student == null)
             {
-                TempData["ErrorMessage"] = "Không tìm thấy sinh viên cần xóa.";
-                return RedirectToAction(nameof(Index));
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Không tìm thấy sinh viên."
+                });
             }
 
-            try
+            _context.Students.Remove(student);
+
+            await _context.SaveChangesAsync();
+
+            return Json(new
             {
-                _context.Students.Remove(student);
-                await _context.SaveChangesAsync();
-
-                TempData["SuccessMessage"] = "Đã xóa sinh viên thành công!";
-            }
-            catch (DbUpdateException)
-            {
-                TempData["ErrorMessage"] =
-                    "Không thể xóa sinh viên. Dữ liệu có thể đang được sử dụng ở nơi khác.";
-            }
-
-            return RedirectToAction(nameof(Index));
+                success = true,
+                message = "Xóa sinh viên thành công."
+            });
         }
 
-        // Nạp danh sách khoa
-        private async Task LoadFacultiesAsync()
-        {
-            var faculties = await _context.Faculties
-                .AsNoTracking()
-                .OrderBy(f => f.Name)
-                .ToListAsync();
-
-            ViewBag.Faculties = new SelectList(
-                faculties,
-                nameof(Faculty.Id),
-                nameof(Faculty.Name));
-        }
-
-        // Tạo mã sinh viên tự động
+        // Tạo mã sinh viên tự động: 2821050001, 2821050002...
         private async Task<string> GenerateStudentCodeAsync()
         {
             var codes = await _context.Students
-                .AsNoTracking()
-                .Where(s => s.StudentCode != null &&
-                            s.StudentCode.StartsWith(StudentCodePrefix))
+                .Where(s =>
+                    s.StudentCode != null &&
+                    s.StudentCode.StartsWith(StudentCodePrefix))
                 .Select(s => s.StudentCode!)
                 .ToListAsync();
 
-            int maxNumber = FirstStudentNumber - 1;
+            int maxNumber = 0;
 
-            foreach (string code in codes)
+            foreach (var code in codes)
             {
                 string suffix = code.Substring(StudentCodePrefix.Length);
 
-                if (suffix.Length == StudentCodeDigits &&
-                    int.TryParse(suffix, out int number) &&
-                    number > maxNumber)
+                if (int.TryParse(suffix, out int number))
                 {
-                    maxNumber = number;
+                    if (number > maxNumber)
+                    {
+                        maxNumber = number;
+                    }
                 }
             }
 
-            int maxAllowed =
-                (int)Math.Pow(10, StudentCodeDigits) - 1;
-
-            if (maxNumber >= maxAllowed)
-            {
-                throw new InvalidOperationException(
-                    "Đã hết số thứ tự mã sinh viên cho tiền tố 282105.");
-            }
-
             return StudentCodePrefix +
-                (maxNumber + 1).ToString($"D{StudentCodeDigits}");
+                (maxNumber + 1).ToString("D4");
         }
     }
 }
-
