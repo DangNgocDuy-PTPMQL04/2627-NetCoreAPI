@@ -1,4 +1,4 @@
-
+using Microsoft.AspNetCore.Authorization;
 using DemoMVC.Data;
 using DemoMVC.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DemoMVC.Controllers
 {
+    [Authorize]
     public class ProductController : Controller
     {
         private readonly ApplicationDbContext _context;
@@ -64,7 +65,7 @@ namespace DemoMVC.Controllers
                 }
             });
         }
-
+[Authorize(Roles = "Admin")]
         [HttpGet]
         public async Task<IActionResult> Get(int id)
         {
@@ -81,7 +82,7 @@ namespace DemoMVC.Controllers
 
             return Json(new { success = true, data = product });
         }
-
+[Authorize(Roles = "Admin")]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Save(Product product)
@@ -89,19 +90,33 @@ namespace DemoMVC.Controllers
             product.Name = product.Name?.Trim() ?? "";
             product.Category = product.Category?.Trim() ?? "";
 
-            if (!ModelState.IsValid)
-            {
-                return Json(new
-                {
-                    success = false,
-                    message = "Vui lòng kiểm tra lại thông tin.",
-                    errors = ModelState
-                        .Where(x => x.Value != null && x.Value.Errors.Count > 0)
-                        .ToDictionary(
-                            x => x.Key,
-                            x => x.Value!.Errors.Select(e => e.ErrorMessage).ToArray())
-                });
-            }
+            
+if (!ModelState.IsValid)
+{
+    var errors = ModelState
+        .Where(x => x.Value != null && x.Value.Errors.Count > 0)
+        .ToDictionary(
+            x => x.Key,
+            x => x.Value!.Errors.Select(e =>
+                string.IsNullOrWhiteSpace(e.ErrorMessage)
+                    ? "Dữ liệu không đúng định dạng."
+                    : e.ErrorMessage
+            ).ToArray()
+        );
+
+    var errorMessage = string.Join(
+        " ",
+        errors.SelectMany(x => x.Value)
+    );
+
+    return BadRequest(new
+    {
+        success = false,
+        message = errorMessage,
+        errors
+    });
+}
+
 
             if (product.Id == 0)
             {
@@ -136,7 +151,7 @@ namespace DemoMVC.Controllers
                     : "Cập nhật sản phẩm thành công."
             });
         }
-
+[Authorize(Roles = "Admin")]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)

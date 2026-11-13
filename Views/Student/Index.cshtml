@@ -1,34 +1,61 @@
 
 @{
     ViewData["Title"] = "Quản lý sinh viên";
+    bool isAdmin = User.IsInRole("Admin");
 }
 
 <div class="container-fluid py-4">
+
+    <!-- Tiêu đề -->
     <div class="d-flex justify-content-between align-items-center mb-4">
+
         <div>
             <h2 class="fw-bold mb-1">
                 <i class="bi bi-people-fill text-primary"></i>
                 Quản lý sinh viên
             </h2>
+
             <p class="text-muted mb-0">
-                Thêm, sửa, xóa và tìm kiếm thông tin sinh viên
+                @(isAdmin
+                    ? "Thêm, sửa, xóa và tìm kiếm thông tin sinh viên"
+                    : "Xem và tìm kiếm thông tin sinh viên")
             </p>
         </div>
 
-        <button type="button"
-                class="btn btn-primary"
-                onclick="openAddModal()">
-            <i class="bi bi-plus-circle"></i>
-            Thêm sinh viên
-        </button>
+        @if (isAdmin)
+        {
+            <button type="button"
+                    class="btn btn-primary"
+                    onclick="openAddModal()">
+
+                <i class="bi bi-plus-circle"></i>
+                Thêm sinh viên
+
+            </button>
+        }
+
     </div>
 
+    @if (!isAdmin)
+    {
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            Bạn đang đăng nhập với quyền User. Bạn chỉ có thể xem danh sách sinh viên.
+        </div>
+    }
+
+    <!-- Danh sách sinh viên -->
     <div class="card shadow-sm border-0">
+
         <div class="card-body">
 
+            <!-- Tìm kiếm -->
             <div class="row g-2 mb-3">
+
                 <div class="col-md-6">
+
                     <div class="input-group">
+
                         <span class="input-group-text">
                             <i class="bi bi-search"></i>
                         </span>
@@ -43,24 +70,34 @@
                                 onclick="searchStudents()">
                             Tìm kiếm
                         </button>
+
                     </div>
+
                 </div>
 
                 <div class="col-md-3">
+
                     <select id="pageSize"
-                            class="form-select"
-                            onchange="loadStudents(1)">
+                            class="form-select">
+
                         <option value="5">5 dòng / trang</option>
                         <option value="10">10 dòng / trang</option>
                         <option value="20">20 dòng / trang</option>
                         <option value="50">50 dòng / trang</option>
+
                     </select>
+
                 </div>
+
             </div>
 
+            <!-- Bảng dữ liệu -->
             <div class="table-responsive">
+
                 <table class="table table-bordered table-hover align-middle">
+
                     <thead class="table-light">
+
                         <tr>
                             <th class="text-center" style="width:60px">STT</th>
                             <th>Mã sinh viên</th>
@@ -68,387 +105,696 @@
                             <th>Địa chỉ</th>
                             <th>Trường</th>
                             <th>Khoa</th>
-                            <th class="text-center" style="width:150px">Thao tác</th>
+
+                            @if (isAdmin)
+                            {
+                                <th class="text-center" style="width:150px">
+                                    Thao tác
+                                </th>
+                            }
                         </tr>
+
                     </thead>
 
                     <tbody id="studentTable">
+
                         <tr>
-                            <td colspan="7" class="text-center text-muted">
+                            <td colspan="@(isAdmin ? 7 : 6)"
+                                class="text-center text-muted">
                                 Đang tải dữ liệu...
                             </td>
                         </tr>
+
                     </tbody>
+
                 </table>
+
             </div>
 
+            <!-- Phân trang -->
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+
                 <div id="paginationInfo" class="text-muted small"></div>
+
                 <nav>
                     <ul class="pagination mb-0" id="pagination"></ul>
                 </nav>
+
             </div>
+
         </div>
+
     </div>
+
 </div>
 
-<!-- Modal thêm / sửa sinh viên -->
-<div class="modal fade" id="studentModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
 
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="modalTitle">
-                    Thêm sinh viên
-                </h5>
+<!-- Modal thêm / sửa sinh viên: chỉ Admin -->
+@if (isAdmin)
+{
+    <div class="modal fade" id="studentModal" tabindex="-1">
 
-                <button type="button"
-                        class="btn-close btn-close-white"
-                        data-bs-dismiss="modal">
-                </button>
-            </div>
+        <div class="modal-dialog modal-lg modal-dialog-centered">
 
-            <form id="studentForm">
-                @Html.AntiForgeryToken()
+            <div class="modal-content">
 
-                <div class="modal-body">
+                <div class="modal-header bg-primary text-white">
 
-                    <input type="hidden" id="Id" name="Id" value="0" />
+                    <h5 class="modal-title" id="modalTitle">
+                        Thêm sinh viên
+                    </h5>
 
-                    <div id="formMessage"
-                         class="alert alert-danger d-none">
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Mã sinh viên</label>
-                        <input type="text"
-                               id="StudentCode"
-                               class="form-control"
-                               placeholder="Mã sinh viên được tự động tạo"
-                               disabled />
-
-                        <small class="text-muted">
-                            Mã sinh viên sẽ được hệ thống tự động tạo khi thêm mới.
-                        </small>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">
-                            Họ và tên <span class="text-danger">*</span>
-                        </label>
-
-                        <input type="text"
-                               id="FullName"
-                               name="FullName"
-                               class="form-control"
-                               maxlength="100"
-                               placeholder="Nhập họ và tên sinh viên" />
-
-                        <small class="text-danger" data-error="FullName"></small>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Địa chỉ</label>
-
-                        <input type="text"
-                               id="Address"
-                               name="Address"
-                               class="form-control"
-                               maxlength="200"
-                               placeholder="Nhập địa chỉ" />
-
-                        <small class="text-danger" data-error="Address"></small>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Trường</label>
-
-                        <input type="text"
-                               id="University"
-                               name="University"
-                               class="form-control"
-                               maxlength="100"
-                               placeholder="Nhập tên trường" />
-
-                        <small class="text-danger" data-error="University"></small>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">
-                            Khoa <span class="text-danger">*</span>
-                        </label>
-
-                        <select id="FacultyId"
-                                name="FacultyId"
-                                class="form-select">
-                            <option value="">-- Chọn khoa --</option>
-                        </select>
-
-                        <small class="text-danger" data-error="FacultyId"></small>
-                    </div>
-
-                </div>
-
-                <div class="modal-footer">
                     <button type="button"
-                            class="btn btn-secondary"
+                            class="btn-close btn-close-white"
                             data-bs-dismiss="modal">
-                        Đóng
                     </button>
 
-                    <button type="submit"
-                            class="btn btn-primary"
-                            id="btnSave">
-                        <i class="bi bi-save"></i>
-                        Lưu thông tin
-                    </button>
                 </div>
-            </form>
+
+                <form id="studentForm">
+
+                    @Html.AntiForgeryToken()
+
+                    <div class="modal-body">
+
+                        <input type="hidden"
+                               id="Id"
+                               name="Id"
+                               value="0" />
+
+                        <div id="formMessage"
+                             class="alert alert-danger d-none">
+                        </div>
+
+                        <!-- Mã sinh viên -->
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Mã sinh viên
+                            </label>
+
+                            <input type="text"
+                                   id="StudentCode"
+                                   class="form-control"
+                                   placeholder="Mã sinh viên được tự động tạo"
+                                   disabled />
+
+                            <small class="text-muted">
+                                Mã sinh viên sẽ được hệ thống tự động tạo khi thêm mới.
+                            </small>
+
+                        </div>
+
+                        <!-- Họ tên -->
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Họ và tên
+                                <span class="text-danger">*</span>
+                            </label>
+
+                            <input type="text"
+                                   id="FullName"
+                                   name="FullName"
+                                   class="form-control"
+                                   maxlength="100"
+                                   placeholder="Nhập họ và tên sinh viên"
+                                   required />
+
+                            <small class="text-danger"
+                                   data-error="FullName">
+                            </small>
+
+                        </div>
+
+                        <!-- Địa chỉ -->
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Địa chỉ
+                            </label>
+
+                            <input type="text"
+                                   id="Address"
+                                   name="Address"
+                                   class="form-control"
+                                   maxlength="200"
+                                   placeholder="Nhập địa chỉ" />
+
+                            <small class="text-danger"
+                                   data-error="Address">
+                            </small>
+
+                        </div>
+
+                        <!-- Trường -->
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Trường
+                            </label>
+
+                            <input type="text"
+                                   id="University"
+                                   name="University"
+                                   class="form-control"
+                                   maxlength="100"
+                                   placeholder="Nhập tên trường" />
+
+                            <small class="text-danger"
+                                   data-error="University">
+                            </small>
+
+                        </div>
+
+                        <!-- Khoa -->
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Khoa
+                                <span class="text-danger">*</span>
+                            </label>
+
+                            <select id="FacultyId"
+                                    name="FacultyId"
+                                    class="form-select"
+                                    required>
+
+                                <option value="">
+                                    -- Chọn khoa --
+                                </option>
+
+                            </select>
+
+                            <small class="text-danger"
+                                   data-error="FacultyId">
+                            </small>
+
+                        </div>
+
+                    </div>
+
+                    <div class="modal-footer">
+
+                        <button type="button"
+                                class="btn btn-secondary"
+                                data-bs-dismiss="modal">
+                            Đóng
+                        </button>
+
+                        <button type="submit"
+                                class="btn btn-primary"
+                                id="btnSave">
+
+                            <i class="bi bi-save"></i>
+                            Lưu thông tin
+
+                        </button>
+
+                    </div>
+
+                </form>
+
+            </div>
 
         </div>
+
     </div>
-</div>
+}
+
 
 @section Scripts {
-    <script>
-        let currentPage = 1;
-        let totalPages = 1;
-        let studentModal;
 
-        const listUrl = '@Url.Action("List", "Student")';
-        const getUrl = '@Url.Action("Get", "Student")';
-        const facultiesUrl = '@Url.Action("Faculties", "Student")';
-        const saveUrl = '@Url.Action("Save", "Student")';
-        const deleteUrl = '@Url.Action("Delete", "Student")';
+<script>
 
-        $(document).ready(function () {
+    // =========================================
+    // PHÂN QUYỀN
+    // =========================================
+
+    const isAdmin = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(isAdmin));
+
+
+    // =========================================
+    // URL CONTROLLER
+    // =========================================
+
+    const listUrl = '@Url.Action("List", "Student")';
+    const getUrl = '@Url.Action("Get", "Student")';
+    const facultiesUrl = '@Url.Action("Faculties", "Student")';
+    const saveUrl = '@Url.Action("Save", "Student")';
+    const deleteUrl = '@Url.Action("Delete", "Student")';
+
+
+    // =========================================
+    // BIẾN TOÀN CỤC
+    // =========================================
+
+    let currentPage = 1;
+    let totalPages = 1;
+    let studentModal = null;
+
+
+    // =========================================
+    // KHỞI TẠO
+    // =========================================
+
+    $(document).ready(function () {
+
+        if (isAdmin) {
+
             studentModal = new bootstrap.Modal(
                 document.getElementById("studentModal")
             );
 
-            loadFaculties();
-            loadStudents(1);
+        }
 
-            $("#keyword").on("keydown", function (e) {
-                if (e.key === "Enter") {
-                    searchStudents();
-                }
-            });
+        loadStudents(1);
+
+        if (isAdmin) {
+            loadFaculties();
+        }
+
+        $("#keyword").on("keydown", function (e) {
+
+            if (e.key === "Enter") {
+                searchStudents();
+            }
+
         });
 
-        function getToken() {
-            return $("#studentForm input[name='__RequestVerificationToken']").val();
-        }
+        $("#pageSize").on("change", function () {
+            loadStudents(1);
+        });
 
-        function showMessage(message) {
-            $("#formMessage")
-                .removeClass("d-none")
-                .text(message);
-        }
+    });
 
-        function clearErrors() {
-            $("#formMessage")
-                .addClass("d-none")
-                .text("");
 
-            $("[data-error]").text("");
-        }
+    // =========================================
+    // HÀM HỖ TRỢ
+    // =========================================
 
-        function loadFaculties(selectedId = "") {
-            $.get(facultiesUrl, function (response) {
-                if (!response.success) {
-                    alert("Không thể tải danh sách khoa.");
-                    return;
-                }
+    function escapeHtml(value) {
 
-                let html = '<option value="">-- Chọn khoa --</option>';
+        return String(value ?? "").replace(/[&<>"']/g, function (char) {
 
-                response.data.forEach(function (faculty) {
-                    html += `
-                        <option value="${faculty.id}">
-                            ${escapeHtml(faculty.name)}
-                        </option>
-                    `;
-                });
+            return {
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#039;"
+            }[char];
 
-                $("#FacultyId").html(html);
+        });
 
-                if (selectedId !== "" && selectedId != null) {
-                    $("#FacultyId").val(String(selectedId));
-                }
-            }).fail(function () {
-                alert("Lỗi khi tải danh sách khoa.");
+    }
+
+
+    function getToken() {
+
+        if (!isAdmin) return "";
+
+        return $("#studentForm input[name='__RequestVerificationToken']").val();
+
+    }
+
+
+    function showMessage(message) {
+
+        $("#formMessage")
+            .removeClass("d-none")
+            .text(message);
+
+    }
+
+
+    function clearErrors() {
+
+        $("#formMessage")
+            .addClass("d-none")
+            .text("");
+
+        $("[data-error]").text("");
+
+    }
+
+
+    // =========================================
+    // TẢI DANH SÁCH KHOA
+    // =========================================
+
+    function loadFaculties(selectedId = "") {
+
+        if (!isAdmin) return;
+
+        $.get(facultiesUrl, function (response) {
+
+            if (!response.success) {
+
+                alert("Không thể tải danh sách khoa.");
+
+                return;
+
+            }
+
+            let html = '<option value="">-- Chọn khoa --</option>';
+
+            response.data.forEach(function (faculty) {
+
+                html += `
+                    <option value="${faculty.id}">
+                        ${escapeHtml(faculty.name)}
+                    </option>
+                `;
+
             });
-        }
 
-        function loadStudents(page = 1) {
-            currentPage = page;
+            $("#FacultyId").html(html);
 
-            $.get(listUrl, {
-                keyword: $("#keyword").val(),
-                page: currentPage,
-                pageSize: $("#pageSize").val()
-            }, function (response) {
+            if (selectedId !== "" && selectedId != null) {
 
-                if (!response.success) {
-                    $("#studentTable").html(`
-                        <tr>
-                            <td colspan="7" class="text-center text-danger">
-                                Không thể tải danh sách sinh viên.
-                            </td>
-                        </tr>
-                    `);
-                    return;
-                }
+                $("#FacultyId").val(String(selectedId));
 
-                const result = response.data;
-                totalPages = result.totalPages;
+            }
 
-                let html = "";
+        }).fail(function () {
 
-                if (result.items.length === 0) {
-                    html = `
-                        <tr>
-                            <td colspan="7" class="text-center text-muted">
-                                Không tìm thấy sinh viên nào.
-                            </td>
-                        </tr>
-                    `;
-                } else {
-                    result.items.forEach(function (student, index) {
-                        const stt =
-                            (result.page - 1) * result.pageSize + index + 1;
+            alert("Lỗi khi tải danh sách khoa.");
 
-                        html += `
-                            <tr>
-                                <td class="text-center">${stt}</td>
-                                <td>${escapeHtml(student.studentCode || "")}</td>
-                                <td>${escapeHtml(student.fullName || "")}</td>
-                                <td>${escapeHtml(student.address || "")}</td>
-                                <td>${escapeHtml(student.university || "")}</td>
-                                <td>${escapeHtml(student.facultyName || "")}</td>
-                                <td class="text-center">
-                                    <button class="btn btn-sm btn-warning"
-                                            onclick="editStudent(${student.id})">
-                                        <i class="bi bi-pencil-square"></i>
-                                    </button>
+        });
 
-                                    <button class="btn btn-sm btn-danger"
-                                            onclick="deleteStudent(${student.id})">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        `;
-                    });
-                }
+    }
 
-                $("#studentTable").html(html);
 
-                $("#paginationInfo").text(
-                    `Tổng ${result.totalCount} sinh viên | Trang ${result.page} / ${result.totalPages || 1}`
-                );
+    // =========================================
+    // TẢI DANH SÁCH SINH VIÊN
+    // =========================================
 
-                renderPagination(result.page, result.totalPages);
-            }).fail(function () {
+    function loadStudents(page = 1) {
+
+        currentPage = page;
+
+        $.get(listUrl, {
+
+            keyword: $("#keyword").val(),
+            page: currentPage,
+            pageSize: $("#pageSize").val()
+
+        }, function (response) {
+
+            if (!response.success) {
+
                 $("#studentTable").html(`
                     <tr>
-                        <td colspan="7" class="text-center text-danger">
-                            Lỗi khi tải dữ liệu sinh viên.
+                        <td colspan="${isAdmin ? 7 : 6}"
+                            class="text-center text-danger">
+                            Không thể tải danh sách sinh viên.
                         </td>
                     </tr>
                 `);
-            });
-        }
 
-        function renderPagination(page, pages) {
+                return;
+
+            }
+
+            const result = response.data;
+
+            totalPages = result.totalPages;
+
             let html = "";
 
-            if (pages <= 1) {
-                $("#pagination").html("");
-                return;
+            if (!result.items || result.items.length === 0) {
+
+                html = `
+                    <tr>
+                        <td colspan="${isAdmin ? 7 : 6}"
+                            class="text-center text-muted">
+                            Không tìm thấy sinh viên nào.
+                        </td>
+                    </tr>
+                `;
+
+            } else {
+
+                result.items.forEach(function (student, index) {
+
+                    const stt =
+                        (result.page - 1) * result.pageSize + index + 1;
+
+                    let actionColumn = "";
+
+                    if (isAdmin) {
+
+                        actionColumn = `
+                            <td class="text-center">
+
+                                <button type="button"
+                                        class="btn btn-sm btn-warning"
+                                        onclick="editStudent(${student.id})"
+                                        title="Sửa sinh viên">
+
+                                    <i class="bi bi-pencil-square"></i>
+
+                                </button>
+
+                                <button type="button"
+                                        class="btn btn-sm btn-danger"
+                                        onclick="deleteStudent(${student.id})"
+                                        title="Xóa sinh viên">
+
+                                    <i class="bi bi-trash"></i>
+
+                                </button>
+
+                            </td>
+                        `;
+
+                    }
+
+                    html += `
+                        <tr>
+
+                            <td class="text-center">${stt}</td>
+
+                            <td>${escapeHtml(student.studentCode)}</td>
+
+                            <td>${escapeHtml(student.fullName)}</td>
+
+                            <td>${escapeHtml(student.address)}</td>
+
+                            <td>${escapeHtml(student.university)}</td>
+
+                            <td>${escapeHtml(student.facultyName)}</td>
+
+                            ${actionColumn}
+
+                        </tr>
+                    `;
+
+                });
+
             }
 
-            html += `
-                <li class="page-item ${page <= 1 ? "disabled" : ""}">
-                    <button class="page-link"
-                            onclick="loadStudents(${page - 1})">
-                        Trước
-                    </button>
-                </li>
-            `;
+            $("#studentTable").html(html);
 
-            for (let i = 1; i <= pages; i++) {
+            $("#paginationInfo").text(
+                `Tổng ${result.totalCount} sinh viên | Trang ${result.page} / ${result.totalPages || 1}`
+            );
+
+            renderPagination(result.page, result.totalPages);
+
+        }).fail(function () {
+
+            $("#studentTable").html(`
+                <tr>
+                    <td colspan="${isAdmin ? 7 : 6}"
+                        class="text-center text-danger">
+                        Lỗi khi tải dữ liệu sinh viên.
+                    </td>
+                </tr>
+            `);
+
+        });
+
+    }
+
+
+    // =========================================
+    // PHÂN TRANG
+    // =========================================
+
+    function renderPagination(page, pages) {
+
+        let html = "";
+
+        if (pages <= 1) {
+
+            $("#pagination").html("");
+
+            return;
+
+        }
+
+        html += `
+            <li class="page-item ${page <= 1 ? "disabled" : ""}">
+
+                <button class="page-link"
+                        ${page <= 1 ? "disabled" : ""}
+                        onclick="loadStudents(${page - 1})">
+
+                    Trước
+
+                </button>
+
+            </li>
+        `;
+
+        for (let i = 1; i <= pages; i++) {
+
+            if (
+                i === 1 ||
+                i === pages ||
+                Math.abs(i - page) <= 2
+            ) {
+
                 html += `
                     <li class="page-item ${i === page ? "active" : ""}">
+
                         <button class="page-link"
                                 onclick="loadStudents(${i})">
+
                             ${i}
+
                         </button>
+
                     </li>
                 `;
+
+            } else if (Math.abs(i - page) === 3) {
+
+                html += `
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                `;
+
             }
 
-            html += `
-                <li class="page-item ${page >= pages ? "disabled" : ""}">
-                    <button class="page-link"
-                            onclick="loadStudents(${page + 1})">
-                        Sau
-                    </button>
-                </li>
-            `;
-
-            $("#pagination").html(html);
         }
 
-        function searchStudents() {
-            loadStudents(1);
-        }
+        html += `
+            <li class="page-item ${page >= pages ? "disabled" : ""}">
 
-        function openAddModal() {
-            $("#studentForm")[0].reset();
+                <button class="page-link"
+                        ${page >= pages ? "disabled" : ""}
+                        onclick="loadStudents(${page + 1})">
 
-            $("#Id").val(0);
-            $("#StudentCode").val("");
+                    Sau
 
-            clearErrors();
+                </button>
 
-            $("#modalTitle").text("Thêm sinh viên");
+            </li>
+        `;
 
-            loadFaculties();
+        $("#pagination").html(html);
+
+    }
+
+
+    // =========================================
+    // TÌM KIẾM SINH VIÊN
+    // =========================================
+
+    function searchStudents() {
+
+        loadStudents(1);
+
+    }
+
+
+    // =========================================
+    // THÊM SINH VIÊN
+    // =========================================
+
+    function openAddModal() {
+
+        if (!isAdmin) return;
+
+        $("#studentForm")[0].reset();
+
+        $("#Id").val("0");
+
+        $("#StudentCode").val("");
+
+        clearErrors();
+
+        $("#modalTitle").text("Thêm sinh viên");
+
+        loadFaculties();
+
+        studentModal.show();
+
+    }
+
+
+    // =========================================
+    // SỬA SINH VIÊN
+    // =========================================
+
+    function editStudent(id) {
+
+        if (!isAdmin) return;
+
+        clearErrors();
+
+        $.get(getUrl, { id: id }, function (response) {
+
+            if (!response.success) {
+
+                alert(response.message || "Không tìm thấy sinh viên.");
+
+                return;
+
+            }
+
+            const student = response.data;
+
+            $("#Id").val(student.id);
+
+            $("#StudentCode").val(student.studentCode || "");
+
+            $("#FullName").val(student.fullName || "");
+
+            $("#Address").val(student.address || "");
+
+            $("#University").val(student.university || "");
+
+            $("#modalTitle").text("Cập nhật sinh viên");
+
+            loadFaculties(student.facultyId);
 
             studentModal.show();
-        }
 
-        function editStudent(id) {
-            clearErrors();
+        }).fail(function (xhr) {
 
-            $.get(getUrl, { id: id }, function (response) {
-                if (!response.success) {
-                    alert(response.message || "Không tìm thấy sinh viên.");
-                    return;
-                }
+            alert(
+                xhr.responseJSON?.message ||
+                "Không thể tải thông tin sinh viên."
+            );
 
-                const student = response.data;
+        });
 
-                $("#Id").val(student.id);
-                $("#StudentCode").val(student.studentCode || "");
-                $("#FullName").val(student.fullName || "");
-                $("#Address").val(student.address || "");
-                $("#University").val(student.university || "");
+    }
 
-                $("#modalTitle").text("Cập nhật sinh viên");
 
-                loadFaculties(student.facultyId);
+    // =========================================
+    // LƯU SINH VIÊN
+    // =========================================
 
-                studentModal.show();
-            }).fail(function (xhr) {
-                alert(xhr.responseJSON?.message ||
-                    "Không thể tải thông tin sinh viên.");
-            });
-        }
+    if (isAdmin) {
 
         $("#studentForm").on("submit", function (e) {
+
             e.preventDefault();
 
             clearErrors();
@@ -456,10 +802,12 @@
             const facultyId = $("#FacultyId").val();
 
             if (!facultyId) {
+
                 $("[data-error='FacultyId']")
                     .text("Vui lòng chọn khoa.");
 
                 return;
+
             }
 
             const saveButton = $("#btnSave");
@@ -468,95 +816,132 @@
                 .html('<span class="spinner-border spinner-border-sm"></span> Đang lưu...');
 
             $.ajax({
+
                 url: saveUrl,
+
                 type: "POST",
 
-                // serialize() bao gồm cả token chống giả mạo.
                 data: $(this).serialize(),
 
+                headers: {
+                    "RequestVerificationToken": getToken()
+                },
+
                 success: function (response) {
+
                     if (response.success) {
+
                         studentModal.hide();
 
                         alert(response.message);
 
                         loadStudents(currentPage);
+
                     } else {
-                        showMessage(
-                            response.message || "Không thể lưu sinh viên."
-                        );
-                    }
-                },
 
-                error: function (xhr) {
-                    const response = xhr.responseJSON;
+                        if (response.errors) {
 
-                    if (response && response.errors) {
-                        Object.keys(response.errors).forEach(function (key) {
-                            $(`[data-error='${key}']`)
-                                .text(response.errors[key].join(", "));
-                        });
+                            Object.keys(response.errors).forEach(function (key) {
+
+                                $(`[data-error='${key}']`)
+                                    .text(response.errors[key].join(", "));
+
+                            });
+
+                        }
 
                         showMessage(
                             response.message ||
                             "Vui lòng kiểm tra lại thông tin."
                         );
 
-                        return;
+                    }
+
+                },
+
+                error: function (xhr) {
+
+                    const response = xhr.responseJSON;
+
+                    if (response?.errors) {
+
+                        Object.keys(response.errors).forEach(function (key) {
+
+                            $(`[data-error='${key}']`)
+                                .text(response.errors[key].join(", "));
+
+                        });
+
                     }
 
                     showMessage(
                         response?.detail ||
                         response?.message ||
-                        "Có lỗi xảy ra khi lưu sinh viên. Hãy kiểm tra lại dữ liệu."
+                        "Có lỗi xảy ra khi lưu sinh viên."
                     );
+
                 },
 
                 complete: function () {
+
                     saveButton.prop("disabled", false)
                         .html('<i class="bi bi-save"></i> Lưu thông tin');
+
                 }
+
             });
+
         });
 
-        function deleteStudent(id) {
-            if (!confirm("Bạn có chắc chắn muốn xóa sinh viên này không?")) {
-                return;
+    }
+
+
+    // =========================================
+    // XÓA SINH VIÊN
+    // =========================================
+
+    function deleteStudent(id) {
+
+        if (!isAdmin) return;
+
+        if (!confirm("Bạn có chắc chắn muốn xóa sinh viên này không?")) {
+
+            return;
+
+        }
+
+        $.ajax({
+
+            url: deleteUrl,
+
+            type: "POST",
+
+            data: {
+                id: id,
+                __RequestVerificationToken: getToken()
+            },
+
+            success: function (response) {
+
+                alert(response.message || "Đã xóa sinh viên.");
+
+                loadStudents(currentPage);
+
+            },
+
+            error: function (xhr) {
+
+                alert(
+                    xhr.responseJSON?.message ||
+                    "Không thể xóa sinh viên."
+                );
+
             }
 
-            $.ajax({
-                url: deleteUrl,
-                type: "POST",
-                data: {
-                    id: id,
-                    __RequestVerificationToken: getToken()
-                },
+        });
 
-                success: function (response) {
-                    alert(response.message || "Đã xóa sinh viên.");
+    }
 
-                    loadStudents(currentPage);
-                },
+</script>
 
-                error: function (xhr) {
-                    alert(
-                        xhr.responseJSON?.message ||
-                        "Không thể xóa sinh viên."
-                    );
-                }
-            });
-        }
-
-        function escapeHtml(value) {
-            return String(value ?? "").replace(/[&<>"']/g, function (char) {
-                return {
-                    "&": "&amp;",
-                    "<": "&lt;",
-                    ">": "&gt;",
-                    '"': "&quot;",
-                    "'": "&#039;"
-                }[char];
-            });
-        }
-    </script>
 }

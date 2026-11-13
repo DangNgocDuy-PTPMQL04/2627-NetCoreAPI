@@ -8,17 +8,26 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// MVC
-builder.Services.AddControllersWithViews();
+// Đăng ký bộ lọc phân quyền động
+builder.Services.AddScoped<DynamicPermissionFilter>();
 
-// Razor Pages cho Identity UI
+// Đăng ký dịch vụ khởi tạo danh sách quyền
+builder.Services.AddScoped<PermissionSeeder>();
+
+// MVC và bộ lọc phân quyền áp dụng cho các Controller Action
+builder.Services.AddControllersWithViews(options =>
+{
+    options.Filters.AddService<DynamicPermissionFilter>();
+});
+
+// Razor Pages cho ASP.NET Core Identity
 builder.Services.AddRazorPages();
 
 // SQL Server
 var connectionString =
     builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException(
-        "Không tìm thấy DefaultConnection."
+        "Không tìm thấy DefaultConnection trong appsettings.json."
     );
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -29,24 +38,20 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services
     .AddDefaultIdentity<ApplicationUser>(options =>
     {
-        // Bắt buộc xác nhận email trước khi đăng nhập.
         options.SignIn.RequireConfirmedEmail = true;
 
-        // Cấu hình mật khẩu.
         options.Password.RequiredLength = 8;
         options.Password.RequireDigit = true;
         options.Password.RequireLowercase = true;
         options.Password.RequireUppercase = true;
         options.Password.RequireNonAlphanumeric = true;
 
-        // Khóa tài khoản sau nhiều lần đăng nhập sai.
         options.Lockout.DefaultLockoutTimeSpan =
             TimeSpan.FromMinutes(5);
 
         options.Lockout.MaxFailedAccessAttempts = 5;
         options.Lockout.AllowedForNewUsers = true;
 
-        // Không cho phép tên người dùng tùy ý.
         options.User.RequireUniqueEmail = true;
     })
     .AddRoles<IdentityRole>()
@@ -56,7 +61,7 @@ builder.Services
 // Email sender
 builder.Services.AddTransient<IEmailSender, EmailSender>();
 
-// Cookie
+// Cấu hình Cookie đăng nhập
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.LoginPath = "/Identity/Account/Login";
@@ -69,14 +74,22 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 var app = builder.Build();
 
-// Khởi tạo Role và tài khoản Admin mặc định.
+// Khởi tạo Role và tài khoản Admin mặc định
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
 
+    // Tạo Role Admin, User và tài khoản Admin
     await SeedIdentityAsync(services, builder.Configuration);
+
+    // Tạo danh sách quyền từ các Controller Action
+    var permissionSeeder =
+        services.GetRequiredService<PermissionSeeder>();
+
+    await permissionSeeder.SeedAsync();
 }
 
+// Cấu hình HTTP pipeline
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
@@ -89,7 +102,7 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
-// Phải đặt Authentication trước Authorization.
+// Authentication phải đứng trước Authorization
 app.UseAuthentication();
 
 app.UseAuthorization();
@@ -106,7 +119,10 @@ app.MapRazorPages();
 app.Run();
 
 
-// Hàm tạo Role và Admin
+// ======================================================
+// KHỞI TẠO ROLE VÀ TÀI KHOẢN ADMIN
+// ======================================================
+
 static async Task SeedIdentityAsync(
     IServiceProvider services,
     IConfiguration configuration)
@@ -117,6 +133,7 @@ static async Task SeedIdentityAsync(
     var userManager =
         services.GetRequiredService<UserManager<ApplicationUser>>();
 
+    // Các Role mặc định
     string[] roles = { "Admin", "User" };
 
     foreach (var role in roles)
@@ -138,10 +155,10 @@ static async Task SeedIdentityAsync(
         }
     }
 
+    // Đọc thông tin Admin từ appsettings.json
     var adminEmail = configuration["AdminSeed:Email"];
     var adminPassword = configuration["AdminSeed:Password"];
 
-    // Chưa cấu hình tài khoản mặc định thì bỏ qua việc tạo Admin.
     if (string.IsNullOrWhiteSpace(adminEmail) ||
         string.IsNullOrWhiteSpace(adminPassword))
     {
@@ -150,6 +167,7 @@ static async Task SeedIdentityAsync(
 
     var admin = await userManager.FindByEmailAsync(adminEmail);
 
+    // Nếu chưa có Admin thì tạo mới
     if (admin == null)
     {
         admin = new ApplicationUser
@@ -175,6 +193,7 @@ static async Task SeedIdentityAsync(
         }
     }
 
+    // Gán Role Admin
     if (!await userManager.IsInRoleAsync(admin, "Admin"))
     {
         var roleResult = await userManager.AddToRoleAsync(
@@ -192,7 +211,7 @@ static async Task SeedIdentityAsync(
         }
     }
 
-    // Tài khoản Admin mặc định đã được xác nhận email.
+    // Xác nhận email cho tài khoản Admin mặc định
     if (!admin.EmailConfirmed)
     {
         admin.EmailConfirmed = true;

@@ -1,4 +1,4 @@
-
+using Microsoft.AspNetCore.Authorization;
 using DemoMVC.Data;
 using DemoMVC.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DemoMVC.Controllers
 {
+    [Authorize]
     public class FacultyController : Controller
     {
         private readonly ApplicationDbContext _context;
@@ -67,7 +68,7 @@ namespace DemoMVC.Controllers
                 }
             });
         }
-
+[Authorize(Roles = "Admin")]
         [HttpGet]
         public async Task<IActionResult> Get(int id)
         {
@@ -91,7 +92,7 @@ namespace DemoMVC.Controllers
 
             return Json(new { success = true, data = faculty });
         }
-
+[Authorize(Roles = "Admin")]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Save(Faculty faculty)
@@ -145,6 +146,7 @@ namespace DemoMVC.Controllers
             });
         }
 
+        [Authorize(Roles = "Admin")]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)

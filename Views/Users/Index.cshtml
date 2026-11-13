@@ -1,0 +1,82 @@
+
+@model List<DemoMVC.ViewModels.UserRoleViewModel>
+
+@{
+    ViewData["Title"] = "Quản lý người dùng";
+}
+
+<div class="container mt-4">
+    <h3 class="mb-3">Quản lý tài khoản và phân quyền</h3>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">@TempData["Success"]</div>
+    }
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body table-responsive">
+            <table class="table table-bordered table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:60px">STT</th>
+                        <th>Họ tên</th>
+                        <th>Email</th>
+                        <th>Vai trò hiện tại</th>
+                        <th style="width:140px">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="5" class="text-center">
+                                Chưa có tài khoản.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @for (int i = 0; i < Model.Count; i++)
+                        {
+                            var user = Model[i];
+
+                            <tr>
+                                <td>@(i + 1)</td>
+                                <td>@user.FullName</td>
+                                <td>@user.Email</td>
+                                <td>
+                                    @if (user.Roles.Count == 0)
+                                    {
+                                        <span class="text-muted">Chưa có Role</span>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var role in user.Roles)
+                                        {
+                                            <span class="badge bg-primary me-1">
+                                                @role.RoleName
+                                            </span>
+                                        }
+                                    }
+                                </td>
+                                <td>
+                                    <a asp-action="ManageRoles"
+                                       asp-route-id="@user.UserId"
+                                       class="btn btn-sm btn-warning">
+                                        <i class="bi bi-shield-check"></i>
+                                        Gán Role
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,116 @@
+
+@page
+@model DemoMVC.Areas.Identity.Pages.Account.RegisterModel
+
+@{
+    ViewData["Title"] = "Đăng ký tài khoản";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-7 col-lg-6">
+
+        <div class="card shadow border-0">
+            <div class="card-header bg-primary text-white text-center py-3">
+                <h4 class="mb-0">
+                    <i class="bi bi-person-plus-fill me-2"></i>
+                    ĐĂNG KÝ TÀI KHOẢN
+                </h4>
+            </div>
+
+            <div class="card-body p-4">
+
+                <p class="text-muted text-center mb-4">
+                    Tạo tài khoản để sử dụng hệ thống DemoMVC.
+                </p>
+
+                <form method="post">
+
+                    <div asp-validation-summary="ModelOnly"
+                         class="alert alert-danger"
+                         role="alert"></div>
+
+                    <input type="hidden" asp-for="ReturnUrl" />
+
+                    <div class="mb-3">
+                        <label asp-for="Input.FullName"
+                               class="form-label fw-semibold"></label>
+
+                        <input asp-for="Input.FullName"
+                               class="form-control"
+                               placeholder="Nhập họ và tên" />
+
+                        <span asp-validation-for="Input.FullName"
+                              class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Input.Email"
+                               class="form-label fw-semibold"></label>
+
+                        <input asp-for="Input.Email"
+                               class="form-control"
+                               placeholder="example@gmail.com" />
+
+                        <span asp-validation-for="Input.Email"
+                              class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Input.Password"
+                               class="form-label fw-semibold"></label>
+
+                        <input asp-for="Input.Password"
+                               class="form-control"
+                               placeholder="Nhập mật khẩu" />
+
+                        <span asp-validation-for="Input.Password"
+                              class="text-danger"></span>
+
+                        <small class="text-muted">
+                            Tối thiểu 8 ký tự, gồm chữ hoa, chữ thường,
+                            số và ký tự đặc biệt.
+                        </small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Input.ConfirmPassword"
+                               class="form-label fw-semibold"></label>
+
+                        <input asp-for="Input.ConfirmPassword"
+                               class="form-control"
+                               placeholder="Nhập lại mật khẩu" />
+
+                        <span asp-validation-for="Input.ConfirmPassword"
+                              class="text-danger"></span>
+                    </div>
+
+                    <div class="d-grid mt-4">
+                        <button type="submit"
+                                class="btn btn-primary btn-lg">
+                            <i class="bi bi-person-check-fill me-2"></i>
+                            Đăng ký
+                        </button>
+                    </div>
+
+                </form>
+
+                <hr />
+
+                <div class="text-center">
+                    Đã có tài khoản?
+                    <a asp-area="Identity"
+                       asp-page="/Account/Login"
+                       class="text-decoration-none fw-semibold">
+                        Đăng nhập ngay
+                    </a>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

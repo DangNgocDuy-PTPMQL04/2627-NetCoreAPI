@@ -1,0 +1,1187 @@
+﻿
+========================================
+FILE: FacultyController.cs
+========================================
+using Microsoft.AspNetCore.Authorization;
+using DemoMVC.Data;
+using DemoMVC.Models;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace DemoMVC.Controllers
+{
+    [Authorize]
+    public class FacultyController : Controller
+    {
+        private readonly ApplicationDbContext _context;
+
+        public FacultyController(ApplicationDbContext context)
+        {
+            _context = context;
+        }
+
+        public IActionResult Index()
+        {
+            return View();
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> List(
+            string? keyword,
+            int page = 1,
+            int pageSize = 5)
+        {
+            page = Math.Max(1, page);
+            pageSize = ValidPageSize(pageSize);
+
+            var query = _context.Faculties.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                keyword = keyword.Trim();
+                query = query.Where(f => f.Name.Contains(keyword));
+            }
+
+            var totalCount = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            page = totalPages > 0 ? Math.Min(page, totalPages) : 1;
+
+            var items = await query
+                .OrderBy(f => f.Id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(f => new
+                {
+                    f.Id,
+                    f.Name,
+                    StudentCount = f.Students.Count()
+                })
+                .ToListAsync();
+
+            return Json(new
+            {
+                success = true,
+                data = new
+                {
+                    items,
+                    totalCount,
+                    page,
+                    pageSize,
+                    totalPages
+                }
+            });
+        }
+[Authorize(Roles = "Admin")]
+        [HttpGet]
+        public async Task<IActionResult> Get(int id)
+        {
+            var faculty = await _context.Faculties
+                .Where(f => f.Id == id)
+                .Select(f => new
+                {
+                    f.Id,
+                    f.Name
+                })
+                .FirstOrDefaultAsync();
+
+            if (faculty == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "KhÃ´ng tÃ¬m tháº¥y khoa."
+                });
+            }
+
+            return Json(new { success = true, data = faculty });
+        }
+[Authorize(Roles = "Admin")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Save(Faculty faculty)
+        {
+            ModelState.Remove(nameof(Faculty.Students));
+
+            faculty.Name = faculty.Name?.Trim() ?? "";
+
+            if (!ModelState.IsValid)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Vui lÃ²ng kiá»ƒm tra láº¡i thÃ´ng tin.",
+                    errors = ModelState
+                        .Where(x => x.Value != null && x.Value.Errors.Count > 0)
+                        .ToDictionary(
+                            x => x.Key,
+                            x => x.Value!.Errors.Select(e => e.ErrorMessage).ToArray())
+                });
+            }
+
+            if (faculty.Id == 0)
+            {
+                _context.Faculties.Add(faculty);
+            }
+            else
+            {
+                var existing = await _context.Faculties.FindAsync(faculty.Id);
+
+                if (existing == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "KhÃ´ng tÃ¬m tháº¥y khoa cáº§n cáº­p nháº­t."
+                    });
+                }
+
+                existing.Name = faculty.Name;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Json(new
+            {
+                success = true,
+                message = faculty.Id == 0
+                    ? "ThÃªm khoa thÃ nh cÃ´ng."
+                    : "Cáº­p nháº­t khoa thÃ nh cÃ´ng."
+            });
+        }
+
+        [Authorize(Roles = "Admin")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var faculty = await _context.Faculties
+                .Include(f => f.Students)
+                .FirstOrDefaultAsync(f => f.Id == id);
+
+            if (faculty == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "KhÃ´ng tÃ¬m tháº¥y khoa."
+                });
+            }
+
+            if (faculty.Students.Any())
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "KhÃ´ng thá»ƒ xÃ³a khoa Ä‘ang cÃ³ sinh viÃªn."
+                });
+            }
+
+            _context.Faculties.Remove(faculty);
+            await _context.SaveChangesAsync();
+
+            return Json(new
+            {
+                success = true,
+                message = "XÃ³a khoa thÃ nh cÃ´ng."
+            });
+        }
+
+        private static int ValidPageSize(int pageSize)
+        {
+            return new[] { 5, 10, 20, 50 }.Contains(pageSize)
+                ? pageSize : 5;
+        }
+    }
+}
+
+
+========================================
+FILE: HomeController.cs
+========================================
+using System.Diagnostics;
+using Microsoft.AspNetCore.Mvc;
+using DemoMVC.Models;
+
+namespace DemoMVC.Controllers;
+
+public class HomeController : Controller
+{
+    public IActionResult Index()
+    {
+        return View();
+    }
+
+    public IActionResult Privacy()
+    {
+        return View();
+    }
+
+    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+    public IActionResult Error()
+    {
+        return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+    }
+}
+
+
+========================================
+FILE: ProductController.cs
+========================================
+using Microsoft.AspNetCore.Authorization;
+using DemoMVC.Data;
+using DemoMVC.Models;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace DemoMVC.Controllers
+{
+    [Authorize]
+    public class ProductController : Controller
+    {
+        private readonly ApplicationDbContext _context;
+
+        public ProductController(ApplicationDbContext context)
+        {
+            _context = context;
+        }
+
+        public IActionResult Index()
+        {
+            return View();
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> List(
+            string? keyword,
+            int page = 1,
+            int pageSize = 5)
+        {
+            page = Math.Max(1, page);
+            pageSize = ValidPageSize(pageSize);
+
+            var query = _context.Products.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                keyword = keyword.Trim();
+
+                query = query.Where(p =>
+                    p.Name.Contains(keyword) ||
+                    p.Category.Contains(keyword));
+            }
+
+            var totalCount = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            page = totalPages > 0 ? Math.Min(page, totalPages) : 1;
+
+            var items = await query
+                .OrderBy(p => p.Id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return Json(new
+            {
+                success = true,
+                data = new
+                {
+                    items,
+                    totalCount,
+                    page,
+                    pageSize,
+                    totalPages
+                }
+            });
+        }
+[Authorize(Roles = "Admin")]
+        [HttpGet]
+        public async Task<IActionResult> Get(int id)
+        {
+            var product = await _context.Products.FindAsync(id);
+
+            if (product == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "KhÃ´ng tÃ¬m tháº¥y sáº£n pháº©m."
+                });
+            }
+
+            return Json(new { success = true, data = product });
+        }
+[Authorize(Roles = "Admin")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Save(Product product)
+        {
+            product.Name = product.Name?.Trim() ?? "";
+            product.Category = product.Category?.Trim() ?? "";
+
+            
+if (!ModelState.IsValid)
+{
+    var errors = ModelState
+        .Where(x => x.Value != null && x.Value.Errors.Count > 0)
+        .ToDictionary(
+            x => x.Key,
+            x => x.Value!.Errors.Select(e =>
+                string.IsNullOrWhiteSpace(e.ErrorMessage)
+                    ? "Dá»¯ liá»‡u khÃ´ng Ä‘Ãºng Ä‘á»‹nh dáº¡ng."
+                    : e.ErrorMessage
+            ).ToArray()
+        );
+
+    var errorMessage = string.Join(
+        " ",
+        errors.SelectMany(x => x.Value)
+    );
+
+    return BadRequest(new
+    {
+        success = false,
+        message = errorMessage,
+        errors
+    });
+}
+
+
+            if (product.Id == 0)
+            {
+                _context.Products.Add(product);
+            }
+            else
+            {
+                var existing = await _context.Products.FindAsync(product.Id);
+
+                if (existing == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "KhÃ´ng tÃ¬m tháº¥y sáº£n pháº©m cáº§n cáº­p nháº­t."
+                    });
+                }
+
+                existing.Name = product.Name;
+                existing.Price = product.Price;
+                existing.Quantity = product.Quantity;
+                existing.Category = product.Category;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Json(new
+            {
+                success = true,
+                message = product.Id == 0
+                    ? "ThÃªm sáº£n pháº©m thÃ nh cÃ´ng."
+                    : "Cáº­p nháº­t sáº£n pháº©m thÃ nh cÃ´ng."
+            });
+        }
+[Authorize(Roles = "Admin")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var product = await _context.Products.FindAsync(id);
+
+            if (product == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "KhÃ´ng tÃ¬m tháº¥y sáº£n pháº©m."
+                });
+            }
+
+            _context.Products.Remove(product);
+            await _context.SaveChangesAsync();
+
+            return Json(new
+            {
+                success = true,
+                message = "XÃ³a sáº£n pháº©m thÃ nh cÃ´ng."
+            });
+        }
+
+        private static int ValidPageSize(int pageSize)
+        {
+            return new[] { 5, 10, 20, 50 }.Contains(pageSize)
+                ? pageSize : 5;
+        }
+    }
+}
+
+
+========================================
+FILE: RoleController.cs
+========================================
+
+using DemoMVC.ViewModels;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace DemoMVC.Controllers;
+
+[Authorize(Roles = "Admin")]
+public class RoleController : Controller
+{
+    private readonly RoleManager<IdentityRole> _roleManager;
+    private readonly UserManager<DemoMVC.Models.ApplicationUser> _userManager;
+
+    public RoleController(
+        RoleManager<IdentityRole> roleManager,
+        UserManager<DemoMVC.Models.ApplicationUser> userManager)
+    {
+        _roleManager = roleManager;
+        _userManager = userManager;
+    }
+
+    // Danh sÃ¡ch Role
+    [HttpGet]
+    public async Task<IActionResult> Index()
+    {
+        var roles = await _roleManager.Roles
+            .OrderBy(r => r.Name)
+            .ToListAsync();
+
+        var result = new List<RoleViewModel>();
+
+        foreach (var role in roles)
+        {
+            result.Add(new RoleViewModel
+            {
+                Id = role.Id,
+                Name = role.Name ?? ""
+            });
+        }
+
+        ViewBag.UserCounts = new Dictionary<string, int>();
+
+        foreach (var role in roles)
+        {
+            var users = await _userManager.GetUsersInRoleAsync(
+                role.Name ?? ""
+            );
+
+            ViewBag.UserCounts[role.Id] = users.Count;
+        }
+
+        return View(result);
+    }
+
+    // Trang thÃªm Role
+    [HttpGet]
+    public IActionResult Create()
+    {
+        return View();
+    }
+
+    // Xá»­ lÃ½ thÃªm Role
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Create(RoleViewModel model)
+    {
+        model.Name = model.Name?.Trim() ?? "";
+
+        if (!ModelState.IsValid)
+            return View(model);
+
+        if (await _roleManager.RoleExistsAsync(model.Name))
+        {
+            ModelState.AddModelError(
+                "Name",
+                "Vai trÃ² nÃ y Ä‘Ã£ tá»“n táº¡i."
+            );
+
+            return View(model);
+        }
+
+        var result = await _roleManager.CreateAsync(
+            new IdentityRole(model.Name)
+        );
+
+        if (result.Succeeded)
+        {
+            TempData["Success"] = "ThÃªm vai trÃ² thÃ nh cÃ´ng.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        foreach (var error in result.Errors)
+            ModelState.AddModelError("", error.Description);
+
+        return View(model);
+    }
+
+    // Trang sá»­a Role
+    [HttpGet]
+    public async Task<IActionResult> Edit(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return NotFound();
+
+        var role = await _roleManager.FindByIdAsync(id);
+
+        if (role == null)
+            return NotFound();
+
+        if (IsSystemRole(role.Name))
+        {
+            TempData["Error"] = "KhÃ´ng Ä‘Æ°á»£c sá»­a tÃªn Role há»‡ thá»‘ng.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        return View(new RoleViewModel
+        {
+            Id = role.Id,
+            Name = role.Name ?? ""
+        });
+    }
+
+    // Xá»­ lÃ½ sá»­a Role
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(RoleViewModel model)
+    {
+        model.Name = model.Name?.Trim() ?? "";
+
+        if (!ModelState.IsValid)
+            return View(model);
+
+        var role = await _roleManager.FindByIdAsync(model.Id);
+
+        if (role == null)
+            return NotFound();
+
+        if (IsSystemRole(role.Name))
+        {
+            TempData["Error"] = "KhÃ´ng Ä‘Æ°á»£c sá»­a tÃªn Role há»‡ thá»‘ng.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        if (await _roleManager.Roles.AnyAsync(r =>
+            r.Id != model.Id &&
+            r.NormalizedName == model.Name.ToUpper()))
+        {
+            ModelState.AddModelError(
+                "Name",
+                "TÃªn vai trÃ² Ä‘Ã£ Ä‘Æ°á»£c sá»­ dá»¥ng."
+            );
+
+            return View(model);
+        }
+
+        role.Name = model.Name;
+
+        var result = await _roleManager.UpdateAsync(role);
+
+        if (result.Succeeded)
+        {
+            TempData["Success"] = "Cáº­p nháº­t vai trÃ² thÃ nh cÃ´ng.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        foreach (var error in result.Errors)
+            ModelState.AddModelError("", error.Description);
+
+        return View(model);
+    }
+
+    // XÃ³a Role
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return NotFound();
+
+        var role = await _roleManager.FindByIdAsync(id);
+
+        if (role == null)
+            return NotFound();
+
+        if (IsSystemRole(role.Name))
+        {
+            TempData["Error"] = "KhÃ´ng Ä‘Æ°á»£c xÃ³a Role Admin hoáº·c User.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var users = await _userManager.GetUsersInRoleAsync(
+            role.Name ?? ""
+        );
+
+        if (users.Count > 0)
+        {
+            TempData["Error"] =
+                $"KhÃ´ng thá»ƒ xÃ³a vai trÃ² nÃ y vÃ¬ Ä‘ang cÃ³ {users.Count} ngÆ°á»i dÃ¹ng.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var result = await _roleManager.DeleteAsync(role);
+
+        if (result.Succeeded)
+            TempData["Success"] = "XÃ³a vai trÃ² thÃ nh cÃ´ng.";
+        else
+            TempData["Error"] = string.Join(
+                ", ",
+                result.Errors.Select(e => e.Description)
+            );
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    private static bool IsSystemRole(string? name)
+    {
+        return string.Equals(name, "Admin",
+                   StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, "User",
+                   StringComparison.OrdinalIgnoreCase);
+    }
+}
+
+
+========================================
+FILE: StudentController.cs
+========================================
+using Microsoft.AspNetCore.Authorization;
+using DemoMVC.Data;
+using DemoMVC.Models;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace DemoMVC.Controllers
+{
+    [Authorize]
+    public class StudentController : Controller
+    {
+        private readonly ApplicationDbContext _context;
+
+        private const string StudentCodePrefix = "282105";
+
+        public StudentController(ApplicationDbContext context)
+        {
+            _context = context;
+        }
+
+        // Trang danh sÃ¡ch sinh viÃªn
+        public IActionResult Index()
+        {
+            return View();
+        }
+
+        // Danh sÃ¡ch sinh viÃªn, tÃ¬m kiáº¿m vÃ  phÃ¢n trang
+        [HttpGet]
+        public async Task<IActionResult> List(
+            string? keyword,
+            int page = 1,
+            int pageSize = 5)
+        {
+            page = Math.Max(1, page);
+
+            int[] allowedPageSizes = { 5, 10, 20, 50 };
+
+            if (!allowedPageSizes.Contains(pageSize))
+            {
+                pageSize = 5;
+            }
+
+            var query = _context.Students
+                .AsNoTracking()
+                .Include(s => s.Faculty)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                keyword = keyword.Trim();
+
+                query = query.Where(s =>
+                    (s.StudentCode != null &&
+                     s.StudentCode.Contains(keyword)) ||
+
+                    s.FullName.Contains(keyword) ||
+
+                    (s.Address != null &&
+                     s.Address.Contains(keyword)) ||
+
+                    (s.University != null &&
+                     s.University.Contains(keyword)) ||
+
+                    (s.Faculty != null &&
+                     s.Faculty.Name.Contains(keyword))
+                );
+            }
+
+            int totalCount = await query.CountAsync();
+
+            int totalPages = (int)Math.Ceiling(
+                totalCount / (double)pageSize
+            );
+
+            if (totalPages > 0 && page > totalPages)
+            {
+                page = totalPages;
+            }
+
+            var items = await query
+                .OrderByDescending(s => s.Id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.StudentCode,
+                    s.FullName,
+                    s.Address,
+                    s.University,
+                    s.FacultyId,
+                    FacultyName = s.Faculty != null
+                        ? s.Faculty.Name
+                        : ""
+                })
+                .ToListAsync();
+
+            return Json(new
+            {
+                success = true,
+                data = new
+                {
+                    items,
+                    totalCount,
+                    page,
+                    pageSize,
+                    totalPages
+                }
+            });
+        }
+
+        // Láº¥y danh sÃ¡ch khoa cho dropdown
+        [Authorize(Roles = "Admin")]
+        [HttpGet]
+        public async Task<IActionResult> Faculties()
+        {
+            var faculties = await _context.Faculties
+                .AsNoTracking()
+                .OrderBy(f => f.Name)
+                .Select(f => new
+                {
+                    id = f.Id,
+                    name = f.Name
+                })
+                .ToListAsync();
+
+            return Json(new
+            {
+                success = true,
+                data = faculties
+            });
+        }
+
+        // Láº¥y thÃ´ng tin má»™t sinh viÃªn Ä‘á»ƒ sá»­a
+        [Authorize(Roles = "Admin")]
+        [HttpGet]
+        public async Task<IActionResult> Get(int id)
+        {
+            var student = await _context.Students
+                .AsNoTracking()
+                .Where(s => s.Id == id)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.StudentCode,
+                    s.FullName,
+                    s.Address,
+                    s.University,
+                    s.FacultyId
+                })
+                .FirstOrDefaultAsync();
+
+            if (student == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "KhÃ´ng tÃ¬m tháº¥y sinh viÃªn."
+                });
+            }
+
+            return Json(new
+            {
+                success = true,
+                data = student
+            });
+        }
+
+        // ThÃªm hoáº·c cáº­p nháº­t sinh viÃªn
+        [Authorize(Roles = "Admin")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Save(Student student)
+        {
+            // MÃ£ sinh viÃªn do há»‡ thá»‘ng táº¡o, khÃ´ng láº¥y tá»« biá»ƒu máº«u.
+            ModelState.Remove(nameof(Student.StudentCode));
+
+            // KhÃ´ng kiá»ƒm tra navigation property tá»« biá»ƒu máº«u.
+            ModelState.Remove(nameof(Student.Faculty));
+
+            student.FullName = student.FullName?.Trim() ?? "";
+            student.Address = student.Address?.Trim();
+            student.University = student.University?.Trim();
+
+            // Kiá»ƒm tra khoa Ä‘Æ°á»£c chá»n cÃ³ tá»“n táº¡i trong database khÃ´ng.
+            if (!student.FacultyId.HasValue ||
+                !await _context.Faculties.AnyAsync(
+                    f => f.Id == student.FacultyId.Value))
+            {
+                ModelState.AddModelError(
+                    nameof(Student.FacultyId),
+                    "Vui lÃ²ng chá»n khoa há»£p lá»‡."
+                );
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState
+                    .Where(x =>
+                        x.Value != null &&
+                        x.Value.Errors.Count > 0)
+                    .ToDictionary(
+                        x => x.Key,
+                        x => x.Value!.Errors
+                            .Select(e =>
+                                string.IsNullOrWhiteSpace(e.ErrorMessage)
+                                    ? "Dá»¯ liá»‡u khÃ´ng há»£p lá»‡."
+                                    : e.ErrorMessage)
+                            .ToArray()
+                    );
+
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Vui lÃ²ng kiá»ƒm tra láº¡i thÃ´ng tin.",
+                    errors
+                });
+            }
+
+            try
+            {
+                if (student.Id == 0)
+                {
+                    student.StudentCode =
+                        await GenerateStudentCodeAsync();
+
+                    student.Faculty = null;
+
+                    _context.Students.Add(student);
+                }
+                else
+                {
+                    var existing = await _context.Students
+                        .FirstOrDefaultAsync(s => s.Id == student.Id);
+
+                    if (existing == null)
+                    {
+                        return NotFound(new
+                        {
+                            success = false,
+                            message = "KhÃ´ng tÃ¬m tháº¥y sinh viÃªn."
+                        });
+                    }
+
+                    // Giá»¯ nguyÃªn mÃ£ sinh viÃªn khi cáº­p nháº­t.
+                    existing.FullName = student.FullName;
+                    existing.Address = student.Address;
+                    existing.University = student.University;
+                    existing.FacultyId = student.FacultyId;
+                }
+
+                await _context.SaveChangesAsync();
+
+                return Json(new
+                {
+                    success = true,
+                    message = student.Id == 0
+                        ? "ThÃªm sinh viÃªn thÃ nh cÃ´ng."
+                        : "Cáº­p nháº­t sinh viÃªn thÃ nh cÃ´ng."
+                });
+            }
+            catch (DbUpdateException ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    message = "KhÃ´ng thá»ƒ lÆ°u dá»¯ liá»‡u vÃ o cÆ¡ sá»Ÿ dá»¯ liá»‡u.",
+                    detail = ex.InnerException?.Message ?? ex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    message = "ÄÃ£ xáº£y ra lá»—i khi lÆ°u sinh viÃªn.",
+                    detail = ex.Message
+                });
+            }
+        }
+[Authorize(Roles = "Admin")]
+        // XÃ³a sinh viÃªn
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var student = await _context.Students.FindAsync(id);
+
+            if (student == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "KhÃ´ng tÃ¬m tháº¥y sinh viÃªn."
+                });
+            }
+
+            _context.Students.Remove(student);
+
+            await _context.SaveChangesAsync();
+
+            return Json(new
+            {
+                success = true,
+                message = "XÃ³a sinh viÃªn thÃ nh cÃ´ng."
+            });
+        }
+
+        // Táº¡o mÃ£ sinh viÃªn tá»± Ä‘á»™ng: 2821050001, 2821050002...
+        private async Task<string> GenerateStudentCodeAsync()
+        {
+            var codes = await _context.Students
+                .Where(s =>
+                    s.StudentCode != null &&
+                    s.StudentCode.StartsWith(StudentCodePrefix))
+                .Select(s => s.StudentCode!)
+                .ToListAsync();
+
+            int maxNumber = 0;
+
+            foreach (var code in codes)
+            {
+                string suffix = code.Substring(StudentCodePrefix.Length);
+
+                if (int.TryParse(suffix, out int number))
+                {
+                    if (number > maxNumber)
+                    {
+                        maxNumber = number;
+                    }
+                }
+            }
+
+            return StudentCodePrefix +
+                (maxNumber + 1).ToString("D4");
+        }
+    }
+}
+
+
+========================================
+FILE: UsersController.cs
+========================================
+
+using DemoMVC.Models;
+using DemoMVC.ViewModels;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace DemoMVC.Controllers;
+
+[Authorize(Roles = "Admin")]
+public class UsersController : Controller
+{
+    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly RoleManager<IdentityRole> _roleManager;
+
+    public UsersController(
+        UserManager<ApplicationUser> userManager,
+        RoleManager<IdentityRole> roleManager)
+    {
+        _userManager = userManager;
+        _roleManager = roleManager;
+    }
+
+    // Danh sÃ¡ch tÃ i khoáº£n
+    [HttpGet]
+    public async Task<IActionResult> Index()
+    {
+        var users = await _userManager.Users
+            .OrderBy(u => u.Email)
+            .ToListAsync();
+
+        var result = new List<UserRoleViewModel>();
+
+        foreach (var user in users)
+        {
+            var roles = await _userManager.GetRolesAsync(user);
+
+            result.Add(new UserRoleViewModel
+            {
+                UserId = user.Id,
+                Email = user.Email ?? "",
+                FullName = user.FullName ?? "",
+                Roles = roles.Select(r => new RoleSelectionViewModel
+                {
+                    RoleName = r,
+                    IsSelected = true
+                }).ToList()
+            });
+        }
+
+        return View(result);
+    }
+
+    // Trang gÃ¡n Role
+    [HttpGet]
+    public async Task<IActionResult> ManageRoles(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return NotFound();
+
+        var user = await _userManager.FindByIdAsync(id);
+
+        if (user == null)
+            return NotFound();
+
+        var userRoles = await _userManager.GetRolesAsync(user);
+
+        var allRoles = await _roleManager.Roles
+            .OrderBy(r => r.Name)
+            .ToListAsync();
+
+        var model = new UserRoleViewModel
+        {
+            UserId = user.Id,
+            Email = user.Email ?? "",
+            FullName = user.FullName ?? "",
+            Roles = allRoles.Select(role =>
+                new RoleSelectionViewModel
+                {
+                    RoleName = role.Name ?? "",
+                    IsSelected = userRoles.Contains(role.Name ?? "")
+                }).ToList()
+        };
+
+        return View(model);
+    }
+
+    // LÆ°u Role
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ManageRoles(UserRoleViewModel model)
+    {
+        var user = await _userManager.FindByIdAsync(model.UserId);
+
+        if (user == null)
+            return NotFound();
+
+        var selectedRoles = model.Roles
+            .Where(r => r.IsSelected)
+            .Select(r => r.RoleName)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // Chá»‰ cho phÃ©p gÃ¡n nhá»¯ng Role Ä‘ang tá»“n táº¡i.
+        foreach (var roleName in selectedRoles)
+        {
+            if (!await _roleManager.RoleExistsAsync(roleName))
+            {
+                TempData["Error"] = $"Role '{roleName}' khÃ´ng tá»“n táº¡i.";
+                return RedirectToAction(nameof(ManageRoles),
+                    new { id = model.UserId });
+            }
+        }
+
+        var currentRoles = await _userManager.GetRolesAsync(user);
+        bool wasAdmin = currentRoles.Contains("Admin");
+        bool willBeAdmin = selectedRoles.Contains(
+            "Admin", StringComparer.OrdinalIgnoreCase);
+
+        // KhÃ´ng cho tá»± thu há»“i quyá»n Admin.
+        if (user.Id == _userManager.GetUserId(User)
+            && wasAdmin && !willBeAdmin)
+        {
+            TempData["Error"] =
+                "Báº¡n khÃ´ng thá»ƒ tá»± thu há»“i quyá»n Admin cá»§a chÃ­nh mÃ¬nh.";
+
+            return RedirectToAction(nameof(ManageRoles),
+                new { id = model.UserId });
+        }
+
+        // KhÃ´ng cho xÃ³a quyá»n Admin cuá»‘i cÃ¹ng cá»§a há»‡ thá»‘ng.
+        if (wasAdmin && !willBeAdmin)
+        {
+            var adminUsers = await _userManager.GetUsersInRoleAsync("Admin");
+
+            if (adminUsers.Count <= 1)
+            {
+                TempData["Error"] =
+                    "KhÃ´ng thá»ƒ thu há»“i quyá»n Admin cuá»‘i cÃ¹ng cá»§a há»‡ thá»‘ng.";
+
+                return RedirectToAction(nameof(ManageRoles),
+                    new { id = model.UserId });
+            }
+        }
+
+        var rolesToRemove = currentRoles
+            .Where(r => !selectedRoles.Contains(
+                r, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+        var rolesToAdd = selectedRoles
+            .Where(r => !currentRoles.Contains(
+                r, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+        if (rolesToRemove.Count > 0)
+        {
+            var removeResult = await _userManager.RemoveFromRolesAsync(
+                user, rolesToRemove);
+
+            if (!removeResult.Succeeded)
+            {
+                TempData["Error"] = string.Join(
+                    ", ",
+                    removeResult.Errors.Select(e => e.Description));
+
+                return RedirectToAction(nameof(ManageRoles),
+                    new { id = model.UserId });
+            }
+        }
+
+        if (rolesToAdd.Count > 0)
+        {
+            var addResult = await _userManager.AddToRolesAsync(
+                user, rolesToAdd);
+
+            if (!addResult.Succeeded)
+            {
+                TempData["Error"] = string.Join(
+                    ", ",
+                    addResult.Errors.Select(e => e.Description));
+
+                return RedirectToAction(nameof(ManageRoles),
+                    new { id = model.UserId });
+            }
+        }
+
+        TempData["Success"] = "Cáº­p nháº­t vai trÃ² ngÆ°á»i dÃ¹ng thÃ nh cÃ´ng.";
+
+        return RedirectToAction(nameof(Index));
+    }
+}
+

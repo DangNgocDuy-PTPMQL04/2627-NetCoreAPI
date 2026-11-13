@@ -3,9 +3,7 @@
 <html lang="vi">
 <head>
     <meta charset="utf-8" />
-
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <title>@ViewData["Title"] - DemoMVC</title>
 
@@ -25,97 +23,135 @@
 </head>
 
 <body>
-
     <header>
-        <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm mb-4">
+        <nav class="navbar navbar-expand-xxl navbar-dark custom-navbar shadow-sm mb-4">
+            <div class="container-fluid custom-navbar-container">
 
-            <div class="container">
-
+                <!-- Logo -->
                 <a class="navbar-brand fw-bold"
                    asp-controller="Home"
                    asp-action="Index">
-
                     <i class="bi bi-mortarboard-fill me-2"></i>
                     DemoMVC
-
                 </a>
 
+                <!-- Nút thu gọn menu -->
                 <button class="navbar-toggler"
                         type="button"
                         data-bs-toggle="collapse"
-                        data-bs-target="#mainNavbar">
-
+                        data-bs-target="#mainNavbar"
+                        aria-controls="mainNavbar"
+                        aria-expanded="false"
+                        aria-label="Mở menu">
                     <span class="navbar-toggler-icon"></span>
-
                 </button>
 
-                <div class="collapse navbar-collapse"
-                     id="mainNavbar">
-
-                    <ul class="navbar-nav me-auto">
+                <!-- Menu điều hướng -->
+                <div class="collapse navbar-collapse" id="mainNavbar">
+                    <ul class="navbar-nav me-auto mb-2 mb-xxl-0">
 
                         <li class="nav-item">
                             <a class="nav-link"
                                asp-controller="Home"
                                asp-action="Index">
+                                <i class="bi bi-house-door-fill me-1"></i>
                                 Trang chủ
                             </a>
                         </li>
 
-                        <li class="nav-item">
-                            <a class="nav-link"
-                               asp-controller="Student"
-                               asp-action="Index">
-                                Sinh viên
-                            </a>
-                        </li>
+                        @if (User.Identity?.IsAuthenticated == true)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link"
+                                   asp-controller="Student"
+                                   asp-action="Index">
+                                    <i class="bi bi-mortarboard me-1"></i>
+                                    Sinh viên
+                                </a>
+                            </li>
 
-                        <li class="nav-item">
-                            <a class="nav-link"
-                               asp-controller="Faculty"
-                               asp-action="Index">
-                                Khoa
-                            </a>
-                        </li>
+                            <li class="nav-item">
+                                <a class="nav-link"
+                                   asp-controller="Faculty"
+                                   asp-action="Index">
+                                    <i class="bi bi-building me-1"></i>
+                                    Khoa
+                                </a>
+                            </li>
 
-                        <li class="nav-item">
-                            <a class="nav-link"
-                               asp-controller="Product"
-                               asp-action="Index">
-                                Sản phẩm
-                            </a>
-                        </li>
+                            <li class="nav-item">
+                                <a class="nav-link"
+                                   asp-controller="Product"
+                                   asp-action="Index">
+                                    <i class="bi bi-box-seam me-1"></i>
+                                    Sản phẩm
+                                </a>
+                            </li>
 
+                            @if (User.IsInRole("Admin"))
+                            {
+                                <li class="nav-item">
+                                    <a class="nav-link admin-nav-link"
+                                       asp-controller="Role"
+                                       asp-action="Index">
+                                        <i class="bi bi-shield-lock-fill me-1"></i>
+                                        Quản lý vai trò
+                                    </a>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a class="nav-link admin-nav-link"
+                                       asp-controller="Users"
+                                       asp-action="Index">
+                                        <i class="bi bi-people-fill me-1"></i>
+                                        Quản lý người dùng
+                                    </a>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a class="nav-link admin-nav-link"
+                                       asp-controller="Permission"
+                                       asp-action="Index">
+                                        <i class="bi bi-shield-lock me-1"></i>
+                                        Quản lý phân quyền
+                                    </a>
+                                </li>
+                            }
+                        }
                     </ul>
-
                 </div>
+
+                <!-- Đăng nhập / Đăng xuất: luôn nằm ngoài menu thu gọn -->
+                <div class="navbar-login">
+                    <partial name="_LoginPartial" />
+                </div>
+
             </div>
         </nav>
     </header>
 
+    <!-- Nội dung -->
     <div class="container pb-4">
-
         <main role="main">
             @RenderBody()
         </main>
-
     </div>
 
-    <footer class="border-top text-muted py-3">
-
-        <div class="container">
+    <!-- Footer -->
+    <footer class="custom-footer">
+        <div class="container text-center">
+            <i class="bi bi-mortarboard-fill me-1"></i>
             &copy; 2026 - DemoMVC
+            <span class="mx-2">|</span>
+            Hệ thống quản lý
         </div>
-
     </footer>
 
+    <!-- JavaScript -->
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
-
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-
     <script src="~/js/site.js" asp-append-version="true"></script>
 
     @await RenderSectionAsync("Scripts", required: false)
-
 </body>
 </html>

@@ -1,4 +1,4 @@
-
+using Microsoft.AspNetCore.Authorization;
 using DemoMVC.Data;
 using DemoMVC.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DemoMVC.Controllers
 {
+    [Authorize]
     public class StudentController : Controller
     {
         private readonly ApplicationDbContext _context;
@@ -109,6 +110,7 @@ namespace DemoMVC.Controllers
         }
 
         // Lấy danh sách khoa cho dropdown
+        [Authorize(Roles = "Admin")]
         [HttpGet]
         public async Task<IActionResult> Faculties()
         {
@@ -130,6 +132,7 @@ namespace DemoMVC.Controllers
         }
 
         // Lấy thông tin một sinh viên để sửa
+        [Authorize(Roles = "Admin")]
         [HttpGet]
         public async Task<IActionResult> Get(int id)
         {
@@ -164,6 +167,7 @@ namespace DemoMVC.Controllers
         }
 
         // Thêm hoặc cập nhật sinh viên
+        [Authorize(Roles = "Admin")]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Save(Student student)
@@ -274,7 +278,7 @@ namespace DemoMVC.Controllers
                 });
             }
         }
-
+[Authorize(Roles = "Admin")]
         // Xóa sinh viên
         [HttpPost]
         [ValidateAntiForgeryToken]
