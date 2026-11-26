@@ -13,6 +13,7 @@ builder.Services.AddScoped<DynamicPermissionFilter>();
 
 // Đăng ký dịch vụ khởi tạo danh sách quyền
 builder.Services.AddScoped<PermissionSeeder>();
+builder.Services.AddScoped<ExcelImportService>();
 
 // MVC và bộ lọc phân quyền áp dụng cho các Controller Action
 builder.Services.AddControllersWithViews(options =>
