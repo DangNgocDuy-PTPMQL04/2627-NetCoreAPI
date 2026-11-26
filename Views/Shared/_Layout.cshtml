@@ -50,6 +50,7 @@
                 <div class="collapse navbar-collapse" id="mainNavbar">
                     <ul class="navbar-nav me-auto mb-2 mb-xxl-0">
 
+                        <!-- Trang chủ -->
                         <li class="nav-item">
                             <a class="nav-link"
                                asp-controller="Home"
@@ -61,6 +62,7 @@
 
                         @if (User.Identity?.IsAuthenticated == true)
                         {
+                            <!-- Sinh viên -->
                             <li class="nav-item">
                                 <a class="nav-link"
                                    asp-controller="Student"
@@ -70,6 +72,7 @@
                                 </a>
                             </li>
 
+                            <!-- Khoa -->
                             <li class="nav-item">
                                 <a class="nav-link"
                                    asp-controller="Faculty"
@@ -79,6 +82,7 @@
                                 </a>
                             </li>
 
+                            <!-- Sản phẩm -->
                             <li class="nav-item">
                                 <a class="nav-link"
                                    asp-controller="Product"
@@ -90,38 +94,72 @@
 
                             @if (User.IsInRole("Admin"))
                             {
-                                <li class="nav-item">
-                                    <a class="nav-link admin-nav-link"
-                                       asp-controller="Role"
-                                       asp-action="Index">
+                                <!-- Menu quản trị -->
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle admin-nav-link"
+                                       href="#"
+                                       id="adminDropdown"
+                                       role="button"
+                                       data-bs-toggle="dropdown"
+                                       aria-expanded="false">
                                         <i class="bi bi-shield-lock-fill me-1"></i>
-                                        Quản lý vai trò
+                                        Quản trị
                                     </a>
-                                </li>
 
-                                <li class="nav-item">
-                                    <a class="nav-link admin-nav-link"
-                                       asp-controller="Users"
-                                       asp-action="Index">
-                                        <i class="bi bi-people-fill me-1"></i>
-                                        Quản lý người dùng
-                                    </a>
-                                </li>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow"
+                                        aria-labelledby="adminDropdown">
 
-                                <li class="nav-item">
-                                    <a class="nav-link admin-nav-link"
-                                       asp-controller="Permission"
-                                       asp-action="Index">
-                                        <i class="bi bi-shield-lock me-1"></i>
-                                        Quản lý phân quyền
-                                    </a>
+                                        <!-- Quản lý vai trò -->
+                                        <li>
+                                            <a class="dropdown-item"
+                                               asp-controller="Role"
+                                               asp-action="Index">
+                                                <i class="bi bi-shield-lock-fill me-2"></i>
+                                                Quản lý vai trò
+                                            </a>
+                                        </li>
+
+                                        <!-- Quản lý người dùng -->
+                                        <li>
+                                            <a class="dropdown-item"
+                                               asp-controller="Users"
+                                               asp-action="Index">
+                                                <i class="bi bi-people-fill me-2"></i>
+                                                Quản lý người dùng
+                                            </a>
+                                        </li>
+
+                                        <!-- Quản lý phân quyền -->
+                                        <li>
+                                            <a class="dropdown-item"
+                                               asp-controller="Permission"
+                                               asp-action="Index">
+                                                <i class="bi bi-shield-check me-2"></i>
+                                                Quản lý phân quyền
+                                            </a>
+                                        </li>
+
+                                        <li>
+                                            <hr class="dropdown-divider" />
+                                        </li>
+
+                                        <!-- Import Excel -->
+                                        <li>
+                                            <a class="dropdown-item"
+                                               asp-controller="Import"
+                                               asp-action="Index">
+                                                <i class="bi bi-file-earmark-excel-fill text-success me-2"></i>
+                                                Import Excel
+                                            </a>
+                                        </li>
+                                    </ul>
                                 </li>
                             }
                         }
                     </ul>
                 </div>
 
-                <!-- Đăng nhập / Đăng xuất: luôn nằm ngoài menu thu gọn -->
+                <!-- Đăng nhập / Đăng xuất -->
                 <div class="navbar-login">
                     <partial name="_LoginPartial" />
                 </div>

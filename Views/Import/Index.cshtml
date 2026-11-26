@@ -1,0 +1,224 @@
+
+@model DemoMVC.Models.ImportViewModel
+
+@{
+    ViewData["Title"] = "Import dữ liệu Excel";
+}
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-file-earmark-excel text-success"></i> Import dữ liệu Excel</h2>
+            <p class="text-muted">
+                Nhập dữ liệu vào các bảng nghiệp vụ của hệ thống.
+            </p>
+        </div>
+
+        <a asp-controller="Import"
+           asp-action="DownloadTemplate"
+           class="btn btn-success">
+            <i class="bi bi-download"></i> Tải file Excel mẫu
+        </a>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.Message))
+    {
+        <div class="alert @(Model.Errors.Count > 0 ? "alert-danger" : "alert-info")">
+            @Model.Message
+        </div>
+    }
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <strong>1. Chọn file Excel</strong>
+        </div>
+
+        <div class="card-body">
+            <form asp-controller="Import"
+                  asp-action="Preview"
+                  method="post"
+                  enctype="multipart/form-data">
+
+                @Html.AntiForgeryToken()
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        File Excel (.xlsx)
+                    </label>
+
+                    <input asp-for="ExcelFile"
+                           type="file"
+                           class="form-control"
+                           accept=".xlsx"
+                           required />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        Chế độ nhập dữ liệu
+                    </label>
+
+                    <select asp-for="ImportMode"
+                            class="form-select"
+                            id="importMode">
+                        <option value="Append">
+                            Ghi bổ sung - Giữ dữ liệu cũ
+                        </option>
+
+                        <option value="Overwrite">
+                            Ghi đè - Xóa dữ liệu cũ và nhập lại
+                        </option>
+                    </select>
+                </div>
+
+                <div class="alert alert-warning">
+                    <strong>Lưu ý:</strong>
+                    Chế độ ghi đè sẽ xóa dữ liệu trong 5 bảng nghiệp vụ
+                    trước khi nhập dữ liệu mới. Các bảng Identity
+                    không bị xóa.
+                </div>
+
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-search"></i> Xem trước dữ liệu
+                </button>
+            </form>
+        </div>
+    </div>
+
+    @if (Model.IsPreview)
+    {
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-info text-white">
+                <strong>2. Kết quả kiểm tra dữ liệu</strong>
+            </div>
+
+            <div class="card-body">
+                <div class="row text-center mb-4">
+                    <div class="col-md-4 mb-2">
+                        <div class="border rounded p-3">
+                            <h3>@Model.TotalRows</h3>
+                            <span>Tổng số dòng</span>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4 mb-2">
+                        <div class="border rounded p-3">
+                            <h3 class="text-success">@Model.ValidRows</h3>
+                            <span>Dòng hợp lệ</span>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4 mb-2">
+                        <div class="border rounded p-3">
+                            <h3 class="text-danger">@Model.InvalidRows</h3>
+                            <span>Lỗi phát hiện</span>
+                        </div>
+                    </div>
+                </div>
+
+                @if (Model.Errors.Any())
+                {
+                    <div class="alert alert-danger">
+                        <h5>Các lỗi cần xử lý:</h5>
+
+                        <ul class="mb-0">
+                            @foreach (var error in Model.Errors)
+                            {
+                                <li>@error</li>
+                            }
+                        </ul>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i>
+                        Dữ liệu hợp lệ. Bạn có thể tiến hành nhập.
+                    </div>
+
+                    <form asp-controller="Import"
+                          asp-action="Import"
+                          method="post"
+                          id="importForm">
+
+                        @Html.AntiForgeryToken()
+
+                        <input type="hidden"
+                               asp-for="PreviewToken" />
+
+                        <input type="hidden"
+                               asp-for="ImportMode" />
+
+                        <div id="overwriteConfirmation"
+                             class="alert alert-danger"
+                             style="display:none">
+
+                            <div class="form-check">
+                                <input asp-for="ConfirmOverwrite"
+                                       class="form-check-input"
+                                       type="checkbox"
+                                       id="confirmOverwrite" />
+
+                                <label class="form-check-label fw-bold"
+                                       for="confirmOverwrite">
+                                    Tôi xác nhận xóa dữ liệu cũ trong 5 bảng
+                                    nghiệp vụ và nhập dữ liệu mới.
+                                </label>
+                            </div>
+                        </div>
+
+                        <button type="submit"
+                                class="btn btn-success"
+                                id="btnImport">
+
+                            <i class="bi bi-database-add"></i>
+                            Xác nhận nhập dữ liệu
+                        </button>
+                    </form>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        const importMode = document.getElementById("importMode");
+        const confirmation = document.getElementById("overwriteConfirmation");
+        const checkbox = document.getElementById("confirmOverwrite");
+        const importForm = document.getElementById("importForm");
+
+        function updateOverwriteConfirmation() {
+            if (!confirmation || !importMode) return;
+
+            const isOverwrite = importMode.value === "Overwrite";
+
+            confirmation.style.display = isOverwrite ? "block" : "none";
+
+            if (!isOverwrite && checkbox) {
+                checkbox.checked = false;
+            }
+        }
+
+        if (importMode) {
+            importMode.addEventListener("change", updateOverwriteConfirmation);
+            updateOverwriteConfirmation();
+        }
+
+        if (importForm) {
+            importForm.addEventListener("submit", function (event) {
+                if (importMode.value === "Overwrite") {
+                    if (!checkbox || !checkbox.checked) {
+                        event.preventDefault();
+                        alert("Bạn phải xác nhận ghi đè dữ liệu trước khi tiếp tục.");
+                        return;
+                    }
+
+                    if (!confirm("Bạn chắc chắn muốn xóa dữ liệu cũ và nhập dữ liệu mới?")) {
+                        event.preventDefault();
+                    }
+                }
+            });
+        }
+    </script>
+}
